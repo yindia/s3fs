@@ -10,7 +10,6 @@ import (
 //go:generate mockery --output=./mocks --case=underscore --all --with-expecter
 type StorageServiceHandler interface {
 	Upload(ctx context.Context, req *connect.Request[v1.UploadRequest]) (*v1.UploadResponse, error)
-	Download(ctx context.Context, req *connect.Request[v1.DownloadRequest]) (*connect.Response[v1.DownloadResponse], error)
 	Delete(ctx context.Context, req *connect.Request[v1.DeleteRequest]) (*connect.Response[v1.DeleteResponse], error)
 	ListObjects(ctx context.Context, req *connect.Request[v1.ListObjectsRequest]) (*connect.Response[v1.ListObjectsResponse], error)
 	Ping(ctx context.Context, req *connect.Request[v1.PingRequest]) (*connect.Response[v1.PingResponse], error)

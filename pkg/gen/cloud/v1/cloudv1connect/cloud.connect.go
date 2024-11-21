@@ -46,18 +46,14 @@ const (
 	DataNodeServiceGetDataProcedure = "/cloud.v1.DataNodeService/GetData"
 	// StorageServiceUploadProcedure is the fully-qualified name of the StorageService's Upload RPC.
 	StorageServiceUploadProcedure = "/cloud.v1.StorageService/Upload"
-	// StorageServiceDownloadProcedure is the fully-qualified name of the StorageService's Download RPC.
-	StorageServiceDownloadProcedure = "/cloud.v1.StorageService/Download"
-	// StorageServiceDeleteProcedure is the fully-qualified name of the StorageService's Delete RPC.
-	StorageServiceDeleteProcedure = "/cloud.v1.StorageService/Delete"
+	// StorageServiceGetProcedure is the fully-qualified name of the StorageService's Get RPC.
+	StorageServiceGetProcedure = "/cloud.v1.StorageService/Get"
 	// StorageServiceListObjectsProcedure is the fully-qualified name of the StorageService's
 	// ListObjects RPC.
 	StorageServiceListObjectsProcedure = "/cloud.v1.StorageService/ListObjects"
-	// StorageServicePingProcedure is the fully-qualified name of the StorageService's Ping RPC.
-	StorageServicePingProcedure = "/cloud.v1.StorageService/Ping"
-	// StorageServiceHeartbeatProcedure is the fully-qualified name of the StorageService's Heartbeat
-	// RPC.
-	StorageServiceHeartbeatProcedure = "/cloud.v1.StorageService/Heartbeat"
+	// StorageServiceReDistributeProcedure is the fully-qualified name of the StorageService's
+	// ReDistribute RPC.
+	StorageServiceReDistributeProcedure = "/cloud.v1.StorageService/ReDistribute"
 )
 
 // DataNodeServiceClient is a client for the cloud.v1.DataNodeService service.
@@ -201,11 +197,9 @@ func (UnimplementedDataNodeServiceHandler) GetData(context.Context, *connect.Req
 // StorageServiceClient is a client for the cloud.v1.StorageService service.
 type StorageServiceClient interface {
 	Upload(context.Context, *connect.Request[v1.UploadRequest]) (*connect.Response[v1.UploadResponse], error)
-	Download(context.Context, *connect.Request[v1.DownloadRequest]) (*connect.Response[v1.DownloadResponse], error)
-	Delete(context.Context, *connect.Request[v1.DeleteRequest]) (*connect.Response[v1.DeleteResponse], error)
+	Get(context.Context, *connect.Request[v1.GetRequest]) (*connect.Response[v1.GetResponse], error)
 	ListObjects(context.Context, *connect.Request[v1.ListObjectsRequest]) (*connect.Response[v1.ListObjectsResponse], error)
-	Ping(context.Context, *connect.Request[v1.PingRequest]) (*connect.Response[v1.PingResponse], error)
-	Heartbeat(context.Context, *connect.Request[v1.HeartbeatRequest]) (*connect.Response[v1.HeartbeatResponse], error)
+	ReDistribute(context.Context, *connect.Request[v1.ReDistributeRequest]) (*connect.Response[v1.ReDistributeResponse], error)
 }
 
 // NewStorageServiceClient constructs a client for the cloud.v1.StorageService service. By default,
@@ -223,14 +217,9 @@ func NewStorageServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			baseURL+StorageServiceUploadProcedure,
 			opts...,
 		),
-		download: connect.NewClient[v1.DownloadRequest, v1.DownloadResponse](
+		get: connect.NewClient[v1.GetRequest, v1.GetResponse](
 			httpClient,
-			baseURL+StorageServiceDownloadProcedure,
-			opts...,
-		),
-		delete: connect.NewClient[v1.DeleteRequest, v1.DeleteResponse](
-			httpClient,
-			baseURL+StorageServiceDeleteProcedure,
+			baseURL+StorageServiceGetProcedure,
 			opts...,
 		),
 		listObjects: connect.NewClient[v1.ListObjectsRequest, v1.ListObjectsResponse](
@@ -238,14 +227,9 @@ func NewStorageServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			baseURL+StorageServiceListObjectsProcedure,
 			opts...,
 		),
-		ping: connect.NewClient[v1.PingRequest, v1.PingResponse](
+		reDistribute: connect.NewClient[v1.ReDistributeRequest, v1.ReDistributeResponse](
 			httpClient,
-			baseURL+StorageServicePingProcedure,
-			opts...,
-		),
-		heartbeat: connect.NewClient[v1.HeartbeatRequest, v1.HeartbeatResponse](
-			httpClient,
-			baseURL+StorageServiceHeartbeatProcedure,
+			baseURL+StorageServiceReDistributeProcedure,
 			opts...,
 		),
 	}
@@ -253,12 +237,10 @@ func NewStorageServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 
 // storageServiceClient implements StorageServiceClient.
 type storageServiceClient struct {
-	upload      *connect.Client[v1.UploadRequest, v1.UploadResponse]
-	download    *connect.Client[v1.DownloadRequest, v1.DownloadResponse]
-	delete      *connect.Client[v1.DeleteRequest, v1.DeleteResponse]
-	listObjects *connect.Client[v1.ListObjectsRequest, v1.ListObjectsResponse]
-	ping        *connect.Client[v1.PingRequest, v1.PingResponse]
-	heartbeat   *connect.Client[v1.HeartbeatRequest, v1.HeartbeatResponse]
+	upload       *connect.Client[v1.UploadRequest, v1.UploadResponse]
+	get          *connect.Client[v1.GetRequest, v1.GetResponse]
+	listObjects  *connect.Client[v1.ListObjectsRequest, v1.ListObjectsResponse]
+	reDistribute *connect.Client[v1.ReDistributeRequest, v1.ReDistributeResponse]
 }
 
 // Upload calls cloud.v1.StorageService.Upload.
@@ -266,14 +248,9 @@ func (c *storageServiceClient) Upload(ctx context.Context, req *connect.Request[
 	return c.upload.CallUnary(ctx, req)
 }
 
-// Download calls cloud.v1.StorageService.Download.
-func (c *storageServiceClient) Download(ctx context.Context, req *connect.Request[v1.DownloadRequest]) (*connect.Response[v1.DownloadResponse], error) {
-	return c.download.CallUnary(ctx, req)
-}
-
-// Delete calls cloud.v1.StorageService.Delete.
-func (c *storageServiceClient) Delete(ctx context.Context, req *connect.Request[v1.DeleteRequest]) (*connect.Response[v1.DeleteResponse], error) {
-	return c.delete.CallUnary(ctx, req)
+// Get calls cloud.v1.StorageService.Get.
+func (c *storageServiceClient) Get(ctx context.Context, req *connect.Request[v1.GetRequest]) (*connect.Response[v1.GetResponse], error) {
+	return c.get.CallUnary(ctx, req)
 }
 
 // ListObjects calls cloud.v1.StorageService.ListObjects.
@@ -281,24 +258,17 @@ func (c *storageServiceClient) ListObjects(ctx context.Context, req *connect.Req
 	return c.listObjects.CallUnary(ctx, req)
 }
 
-// Ping calls cloud.v1.StorageService.Ping.
-func (c *storageServiceClient) Ping(ctx context.Context, req *connect.Request[v1.PingRequest]) (*connect.Response[v1.PingResponse], error) {
-	return c.ping.CallUnary(ctx, req)
-}
-
-// Heartbeat calls cloud.v1.StorageService.Heartbeat.
-func (c *storageServiceClient) Heartbeat(ctx context.Context, req *connect.Request[v1.HeartbeatRequest]) (*connect.Response[v1.HeartbeatResponse], error) {
-	return c.heartbeat.CallUnary(ctx, req)
+// ReDistribute calls cloud.v1.StorageService.ReDistribute.
+func (c *storageServiceClient) ReDistribute(ctx context.Context, req *connect.Request[v1.ReDistributeRequest]) (*connect.Response[v1.ReDistributeResponse], error) {
+	return c.reDistribute.CallUnary(ctx, req)
 }
 
 // StorageServiceHandler is an implementation of the cloud.v1.StorageService service.
 type StorageServiceHandler interface {
 	Upload(context.Context, *connect.Request[v1.UploadRequest]) (*connect.Response[v1.UploadResponse], error)
-	Download(context.Context, *connect.Request[v1.DownloadRequest]) (*connect.Response[v1.DownloadResponse], error)
-	Delete(context.Context, *connect.Request[v1.DeleteRequest]) (*connect.Response[v1.DeleteResponse], error)
+	Get(context.Context, *connect.Request[v1.GetRequest]) (*connect.Response[v1.GetResponse], error)
 	ListObjects(context.Context, *connect.Request[v1.ListObjectsRequest]) (*connect.Response[v1.ListObjectsResponse], error)
-	Ping(context.Context, *connect.Request[v1.PingRequest]) (*connect.Response[v1.PingResponse], error)
-	Heartbeat(context.Context, *connect.Request[v1.HeartbeatRequest]) (*connect.Response[v1.HeartbeatResponse], error)
+	ReDistribute(context.Context, *connect.Request[v1.ReDistributeRequest]) (*connect.Response[v1.ReDistributeResponse], error)
 }
 
 // NewStorageServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -312,14 +282,9 @@ func NewStorageServiceHandler(svc StorageServiceHandler, opts ...connect.Handler
 		svc.Upload,
 		opts...,
 	)
-	storageServiceDownloadHandler := connect.NewUnaryHandler(
-		StorageServiceDownloadProcedure,
-		svc.Download,
-		opts...,
-	)
-	storageServiceDeleteHandler := connect.NewUnaryHandler(
-		StorageServiceDeleteProcedure,
-		svc.Delete,
+	storageServiceGetHandler := connect.NewUnaryHandler(
+		StorageServiceGetProcedure,
+		svc.Get,
 		opts...,
 	)
 	storageServiceListObjectsHandler := connect.NewUnaryHandler(
@@ -327,30 +292,21 @@ func NewStorageServiceHandler(svc StorageServiceHandler, opts ...connect.Handler
 		svc.ListObjects,
 		opts...,
 	)
-	storageServicePingHandler := connect.NewUnaryHandler(
-		StorageServicePingProcedure,
-		svc.Ping,
-		opts...,
-	)
-	storageServiceHeartbeatHandler := connect.NewUnaryHandler(
-		StorageServiceHeartbeatProcedure,
-		svc.Heartbeat,
+	storageServiceReDistributeHandler := connect.NewUnaryHandler(
+		StorageServiceReDistributeProcedure,
+		svc.ReDistribute,
 		opts...,
 	)
 	return "/cloud.v1.StorageService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case StorageServiceUploadProcedure:
 			storageServiceUploadHandler.ServeHTTP(w, r)
-		case StorageServiceDownloadProcedure:
-			storageServiceDownloadHandler.ServeHTTP(w, r)
-		case StorageServiceDeleteProcedure:
-			storageServiceDeleteHandler.ServeHTTP(w, r)
+		case StorageServiceGetProcedure:
+			storageServiceGetHandler.ServeHTTP(w, r)
 		case StorageServiceListObjectsProcedure:
 			storageServiceListObjectsHandler.ServeHTTP(w, r)
-		case StorageServicePingProcedure:
-			storageServicePingHandler.ServeHTTP(w, r)
-		case StorageServiceHeartbeatProcedure:
-			storageServiceHeartbeatHandler.ServeHTTP(w, r)
+		case StorageServiceReDistributeProcedure:
+			storageServiceReDistributeHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -364,22 +320,14 @@ func (UnimplementedStorageServiceHandler) Upload(context.Context, *connect.Reque
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("cloud.v1.StorageService.Upload is not implemented"))
 }
 
-func (UnimplementedStorageServiceHandler) Download(context.Context, *connect.Request[v1.DownloadRequest]) (*connect.Response[v1.DownloadResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("cloud.v1.StorageService.Download is not implemented"))
-}
-
-func (UnimplementedStorageServiceHandler) Delete(context.Context, *connect.Request[v1.DeleteRequest]) (*connect.Response[v1.DeleteResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("cloud.v1.StorageService.Delete is not implemented"))
+func (UnimplementedStorageServiceHandler) Get(context.Context, *connect.Request[v1.GetRequest]) (*connect.Response[v1.GetResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("cloud.v1.StorageService.Get is not implemented"))
 }
 
 func (UnimplementedStorageServiceHandler) ListObjects(context.Context, *connect.Request[v1.ListObjectsRequest]) (*connect.Response[v1.ListObjectsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("cloud.v1.StorageService.ListObjects is not implemented"))
 }
 
-func (UnimplementedStorageServiceHandler) Ping(context.Context, *connect.Request[v1.PingRequest]) (*connect.Response[v1.PingResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("cloud.v1.StorageService.Ping is not implemented"))
-}
-
-func (UnimplementedStorageServiceHandler) Heartbeat(context.Context, *connect.Request[v1.HeartbeatRequest]) (*connect.Response[v1.HeartbeatResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("cloud.v1.StorageService.Heartbeat is not implemented"))
+func (UnimplementedStorageServiceHandler) ReDistribute(context.Context, *connect.Request[v1.ReDistributeRequest]) (*connect.Response[v1.ReDistributeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("cloud.v1.StorageService.ReDistribute is not implemented"))
 }

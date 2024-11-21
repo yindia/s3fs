@@ -8,9 +8,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	v1 "s3fs/pkg/gen/cloud/v1"
 	"s3fs/pkg/gen/cloud/v1/cloudv1connect"
-	"strconv"
 
 	"connectrpc.com/connect"
 	"connectrpc.com/otelconnect"
@@ -20,29 +20,43 @@ import (
 type S3fs struct {
 	validator     *protovalidate.Validator
 	DataDirectory string
-	ServicePort   uint16
 	Host          string
 	Port          uint16
 }
 
-func NewDataNodeServer() cloudv1connect.DataNodeServiceHandler {
+func NewDataNodeServer(dir string, port uint16, host string) cloudv1connect.DataNodeServiceHandler {
 	validator, err := protovalidate.New()
 	if err != nil {
 		log.Fatalf("Failed to initialize validator: %v", err)
 	}
 
 	return &S3fs{
-		validator: validator,
+		validator:     validator,
+		DataDirectory: filepath.Base(dir),
+		Host:          host,
+		Port:          port,
 	}
 }
 
 func (s *S3fs) PutData(ctx context.Context, req *connect.Request[v1.DataNodePutRequest]) (*connect.Response[v1.DataNodeWriteStatus], error) {
+	log.Println("PutData called with BlockId:", req.Msg.BlockId)
+	log.Printf("Request Message: %+v\n", req.Msg)
+
 	if err := s.validator.Validate(req.Msg); err != nil {
+		log.Println("Validation error:", err)
 		return nil, err
 	}
 
-	fileWriteHandler, err := os.Create(s.DataDirectory + req.Msg.BlockId)
+	// Ensure the directory exists
+	fullPath := filepath.Join(s.DataDirectory, req.Msg.BlockId)
+	if err := os.MkdirAll(filepath.Dir(fullPath), os.ModePerm); err != nil {
+		log.Println("Error creating directory:", err)
+		return nil, err
+	}
+
+	fileWriteHandler, err := os.Create(fullPath)
 	if err != nil {
+		log.Println("Error creating file:", err)
 		return nil, err
 	}
 	defer fileWriteHandler.Close()
@@ -50,10 +64,12 @@ func (s *S3fs) PutData(ctx context.Context, req *connect.Request[v1.DataNodePutR
 	fileWriter := bufio.NewWriter(fileWriteHandler)
 	_, err = fileWriter.WriteString(req.Msg.Data)
 	if err != nil {
+		log.Println("Error writing to file:", err)
 		return nil, err
 	}
 	fileWriter.Flush()
 
+	log.Println("Forwarding for replication for BlockId:", req.Msg.BlockId)
 	s.forwardForReplication(req)
 
 	return connect.NewResponse(&v1.DataNodeWriteStatus{
@@ -62,36 +78,43 @@ func (s *S3fs) PutData(ctx context.Context, req *connect.Request[v1.DataNodePutR
 }
 
 func (s *S3fs) GetData(ctx context.Context, req *connect.Request[v1.DataNodeGetRequest]) (*connect.Response[v1.DataNodeData], error) {
-	if err := s.validator.Validate(req.Msg); err != nil {
-		return nil, err
-	}
+	log.Println("GetData called with BlockId:", req.Msg.BlockId)
+	log.Printf("Request Message: %+v\n", req.Msg)
 
-	dataBytes, err := ioutil.ReadFile(s.DataDirectory + req.Msg.BlockId)
-	if err != nil {
+	if err := s.validator.Validate(req.Msg); err != nil {
+		log.Println("Validation error:", err)
 		return nil, err
 	}
+	fullPath := filepath.Join(s.DataDirectory, req.Msg.BlockId)
+	dataBytes, err := ioutil.ReadFile(fullPath)
+	if err != nil {
+		log.Println("Error reading file:", err)
+		return nil, err
+	}
+	log.Println("Data retrieved for BlockId:", req.Msg.BlockId)
 	return connect.NewResponse(&v1.DataNodeData{
 		Data: string(dataBytes),
 	}), nil
 }
 
 func (s *S3fs) Ping(ctx context.Context, req *connect.Request[v1.PingRequest]) (*connect.Response[v1.PingResponse], error) {
+	log.Println("Ping called from Host:", req.Msg.Host)
 	if err := s.validator.Validate(req.Msg); err != nil {
+		log.Println("Validation error:", err)
 		return nil, err
 	}
 	s.Host = req.Msg.Host
-	port, err := strconv.ParseUint(req.Msg.Port, 10, 16)
-	if err != nil {
-		return nil, fmt.Errorf("invalid port: %v", err)
-	}
-	s.Port = uint16(port)
+	s.Port = uint16(req.Msg.Port)
+	log.Println("Ping updated Host and Port:", s.Host, s.Port)
 	return connect.NewResponse(&v1.PingResponse{
 		Ack: true,
 	}), nil
 }
 
 func (s *S3fs) Heartbeat(ctx context.Context, req *connect.Request[v1.HeartbeatRequest]) (*connect.Response[v1.HeartbeatResponse], error) {
+	log.Println("Heartbeat called")
 	if err := s.validator.Validate(req.Msg); err != nil {
+		log.Println("Validation error:", err)
 		return nil, err
 	}
 	return connect.NewResponse(&v1.HeartbeatResponse{
@@ -115,16 +138,18 @@ func (s *S3fs) forwardForReplication(request *connect.Request[v1.DataNodePutRequ
 		return fmt.Errorf("error creating interceptor: %w", err)
 	}
 
-	client := cloudv1connect.NewDataNodeServiceClient(http.DefaultClient, fmt.Sprintf("http://%s:%s", startingDataNode.Host, startingDataNode.ServicePort), connect.WithInterceptors(interceptor))
-	payloadRequest := connect.NewRequest(&v1.DataNodePutRequest{
+	client := cloudv1connect.NewDataNodeServiceClient(http.DefaultClient, fmt.Sprintf("http://%s:%d", startingDataNode.Host, startingDataNode.ServicePort), connect.WithInterceptors(interceptor))
+
+	res, err := client.PutData(context.Background(), connect.NewRequest(&v1.DataNodePutRequest{
 		BlockId:          blockId,
 		Data:             request.Msg.Data,
 		ReplicationNodes: remainingDataNodes,
-	})
-
-	_, err = client.PutData(context.Background(), payloadRequest)
+	}))
 	if err != nil {
+		fmt.Println(err, "===>")
 		return err
 	}
+	fmt.Println(res.Msg.Status)
+	fmt.Println(remainingDataNodes, "===>")
 	return nil
 }

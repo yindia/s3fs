@@ -9,6 +9,7 @@ require (
 	connectrpc.com/otelconnect v0.7.1
 	github.com/bufbuild/protovalidate-go v0.7.3
 	github.com/envoyproxy/protoc-gen-validate v1.1.0
+	github.com/google/uuid v1.6.0
 	github.com/rs/cors v1.11.1
 	github.com/spf13/cobra v1.8.1
 	golang.org/x/net v0.26.0

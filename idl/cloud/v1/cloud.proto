@@ -15,16 +15,24 @@ service DataNodeService {
 
 service StorageService {
     rpc Upload(UploadRequest) returns (UploadResponse);
-    rpc Download(DownloadRequest) returns (DownloadResponse);
-    rpc Delete(DeleteRequest) returns (DeleteResponse);
+    rpc Get(GetRequest) returns (GetResponse);
     rpc ListObjects(ListObjectsRequest) returns (ListObjectsResponse);
-    rpc Ping(PingRequest) returns (PingResponse);
-    rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+    rpc ReDistribute(ReDistributeRequest) returns (ReDistributeResponse);
+
+}
+
+
+message ReDistributeRequest {
+    string data_node_uri = 1; // Corresponds to DataNodeUri in your struct
+}
+
+message ReDistributeResponse {
+    string message = 1; // You can customize this field as needed
 }
 
 message DataNodePutRequest {
-    string block_id = 1;
-    string data = 2;
+    string block_id = 1 [(validate.rules).string = {min_len: 1, max_len: 50}];
+    string data = 2 [(validate.rules).string = {min_len: 1, max_len: 1000}];
     repeated NodeAddress replication_nodes = 3;
 }
 
@@ -33,21 +41,29 @@ message DataNodeWriteStatus {
 }
 
 message DataNodeGetRequest {
-    string block_id = 1;
+    string block_id = 1 [(validate.rules).string = {min_len: 1, max_len: 50}];
 }
 
 message DataNodeData {
     string data = 1;
 }
 
+message GetRequest {
+    string object_key = 1 [(validate.rules).string = {min_len: 1, max_len: 100}];
+}
+
+message GetResponse {
+    bytes data = 1;
+}
 message NodeAddress {
-    string host = 1;
-    string service_port = 2;
+    string host = 1 [(validate.rules).string = {min_len: 1, max_len: 100, pattern: "^(?!-)[A-Za-z0-9-]{1,63}(?<!-)$"}];
+    uint32 service_port = 2 [(validate.rules).string = {min_len: 1, max_len: 5, pattern: "^[0-9]{1,5}$"}];
 }
 
 // Define the request and response messages for each method
 message UploadRequest {
-    string object_key = 2;
+    uint32 file_size = 1;
+    string object_key = 2 [(validate.rules).string = {min_len: 1, max_len: 100}];
     bytes data = 3;
 }
 
@@ -56,7 +72,7 @@ message UploadResponse {
 }
 
 message DownloadRequest {
-    string object_key = 2;
+    string object_key = 2 [(validate.rules).string = {min_len: 1, max_len: 100}];
 }
 
 message DownloadResponse {
@@ -64,7 +80,7 @@ message DownloadResponse {
 }
 
 message DeleteRequest {
-    string object_key = 2;
+    string object_key = 2 [(validate.rules).string = {min_len: 1, max_len: 100}];
 }
 
 message DeleteResponse {
@@ -79,8 +95,8 @@ message ListObjectsResponse {
 }
 
 message PingRequest {
-    string host = 1;
-    string port = 2;
+    string host = 1 [(validate.rules).string = {min_len: 1, max_len: 100, pattern: "^(?!-)[A-Za-z0-9-]{1,63}(?<!-)$"}];
+    uint32 port = 2 [(validate.rules).string = {min_len: 1, max_len: 5, pattern: "^[0-9]{1,5}$"}];
 }
 
 message PingResponse {
