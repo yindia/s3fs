@@ -1,0 +1,75 @@
+version: 2
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    main: ./main.go
+    binary: s3fs
+    id: s3fs
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - arm64
+      - amd64
+    ldflags:
+      - -s -w -X github.com/flyteorg/flytestdlib/version.Version={{.Version}} -X github.com/flyteorg/flytestdlib/version.Build={{.ShortCommit}} -X github.com/flyteorg/flytestdlib/version.BuildTime={{.Date}}
+
+archives:
+  - name_template: |-
+      {{ .ProjectName }}_
+      {{- if eq .Os "darwin" }}Darwin
+      {{- else if eq .Os "linux" }}Linux
+      {{- else if eq .Os "windows" }}Windows
+      {{- else }}{{ .Os }}{{ end }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    strip_binary_directory: true
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  name_template: "{{ .Tag }}-next"
+
+changelog:
+  disable: true
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+brews:
+  - name: s3fs
+    directory: Formula
+    repository:
+      owner: yindia
+      name: s3fs
+    commit_author:
+      name: Yuvraj
+      email: evalsocket@gmail.com
+    homepage: "https://github.com"
+    description: ""
+    skip_upload: auto
+
+release:
+  github:
+    owner: yindia
+    name: s3fs
+  draft: false
+  ids:
+    - s3fs
+  disable: false
+  extra_files:
+    - glob: ./dist/*.tar.gz
+    - glob: ./dist/*.zip

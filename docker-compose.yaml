@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8080:8080"
-    command: ["serve", "-p", "8080", "-d", "./data"]
+    command: ["serve", "-d", "./data"]
     networks:
       - s3fs-network
     environment:
