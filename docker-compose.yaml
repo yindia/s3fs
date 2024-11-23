@@ -1,78 +1,19 @@
 version: '3.1'
 
 services:
-  datanode1: &datanode_defaults  # Define common properties for datanodes
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "8081:8081"
-    command: ["serve", "datanode", "-d", "./data/test1", "-p", "8081", "-u", "127.0.0.1"]
-    volumes:
-      - .:/app  # Mount current directory to /app in the container
-
-    networks:
-      - task-network
-
-  datanode2:  # New datanode
-    <<: *datanode_defaults  # Inherit common properties
-    ports:
-      - "8082:8082"
-    command: ["serve", "datanode", "-d", "./data/test2", "-p", "8082", "-u", "127.0.0.1"]
-    volumes:
-      - .:/app  # Mount current directory to /app in the container
-
-  datanode3:  # New datanode
-    <<: *datanode_defaults  # Inherit common properties
-    ports:
-      - "8083:8083"
-    command: ["serve", "datanode", "-d", "./data/test3", "-p", "8083", "-u", "127.0.0.1"]
-    volumes:
-      - .:/app  # Mount current directory to /app in the container
-
-  datanode4:  # New datanode
-    <<: *datanode_defaults  # Inherit common properties
-    ports:
-      - "8084:8084"
-    command: ["serve", "datanode", "-d", "./data/test4", "-p", "8084", "-u", "127.0.0.1"]
-    volumes:
-      - .:/app  # Mount current directory to /app in the container
-
-  datanode5:  # New datanode
-    <<: *datanode_defaults  # Inherit common properties
-    ports:
-      - "8085:8085"
-    command: ["serve", "datanode", "-d", "./data/test5", "-p", "8085", "-u", "127.0.0.1"]
-    volumes:
-      - .:/app  # Mount current directory to /app in the container
-
   server:
     build:
       context: .
       dockerfile: Dockerfile
     ports:
       - "8080:8080"
-    command: ["serve", "s3fs", "-n", "datanode1:8081", "-n", "datanode2:8082", "-n", "datanode3:8083", "-n", "datanode4:8084", "-n", "datanode5:8085", "-p", "8080", "-b", "1000", "-r", "3"]
-    depends_on:
-      datanode1:
-        condition: service_started  # Change to service_started
-      datanode2:
-        condition: service_started  # Change to service_started
-      datanode3:
-        condition: service_started  # Change to service_started
-      datanode4:
-        condition: service_started  # Change to service_started
-      datanode5:
-        condition: service_started  
-    links:
-      - datanode1
-      - datanode2  # Links to new datanodes
-      - datanode3  # Links to new datanodes
-      - datanode4  # Links to new datanodes
-      - datanode5  # Links to new datanodes
+    command: ["serve", "-p", "8080", "-d", "./data"]
     networks:
-      - task-network
+      - s3fs-network
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
 
 networks:
-  task-network:
+  s3fs-network:
     driver: bridge

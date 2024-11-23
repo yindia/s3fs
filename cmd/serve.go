@@ -4,21 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"log/slog"
 	"math"
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
-	dsroute "s3fs/pkg/datanode"
-	v1 "s3fs/pkg/gen/cloud/v1"
 	"s3fs/pkg/gen/cloud/v1/cloudv1connect"
-	s3fs "s3fs/pkg/s3fs"
+	dsroute "s3fs/server/route"
 
 	"connectrpc.com/connect"
 	"connectrpc.com/grpchealth"
@@ -32,16 +27,11 @@ import (
 
 const (
 	CompressMinByte = 1024 // Minimum byte size for compression
-
 )
 
 var (
-	port              uint16
-	server            string
-	dir               string
-	blockSize         uint64
-	replicationFactor uint64
-	nodes             []string
+	port uint16
+	dir  string
 )
 
 // newCORS initializes CORS settings for the server
@@ -77,16 +67,36 @@ func newCORS() *cors.Cors {
 	})
 }
 
+// serveCmd represents the serve command
 var serveCmd = &cobra.Command{
 	Use:     "serve",
 	Aliases: []string{"s", "server"},
-	Short:   "Server the s3 server",
-	Long:    ``,
+	Short:   "Start the S3 server",
+	Long:    "This command starts the S3 server with the specified configurations.",
 	Example: `  `,
 	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return nil
+		mux := createMux(createServiceHandler())
+		return runServer(mux)
 	},
+}
+
+// createServiceHandler creates a service handler for the storage service
+func createServiceHandler() func() (string, http.Handler) {
+	return func() (string, http.Handler) {
+		otelInterceptor, err := otelconnect.NewInterceptor()
+		if err != nil {
+			return "/", http.NotFoundHandler()
+		}
+
+		return cloudv1connect.NewStorageServiceHandler(
+			dsroute.NewStorage(dir),
+			connect.WithInterceptors(otelInterceptor),
+			connect.WithCompressMinBytes(CompressMinByte),
+			connect.WithSendMaxBytes(math.MaxInt32),
+			connect.WithReadMaxBytes(math.MaxInt32),
+		)
+	}
 }
 
 // initializeServer initializes and returns a new HTTP server
@@ -112,13 +122,13 @@ func createMux(serviceHandler func() (string, http.Handler)) *http.ServeMux {
 
 	// Health check and reflection handlers
 	mux.Handle(grpchealth.NewHandler(
-		grpchealth.NewStaticChecker(cloudv1connect.DataNodeServiceName), // Adjust this for s3fs
+		grpchealth.NewStaticChecker(cloudv1connect.StorageServiceName), // Adjust this for s3fs
 	))
 	mux.Handle(grpcreflect.NewHandlerV1(
-		grpcreflect.NewStaticReflector(cloudv1connect.DataNodeServiceName), // Adjust this for s3fs
+		grpcreflect.NewStaticReflector(cloudv1connect.StorageServiceName), // Adjust this for s3fs
 	))
 	mux.Handle(grpcreflect.NewHandlerV1Alpha(
-		grpcreflect.NewStaticReflector(cloudv1connect.DataNodeServiceName), // Adjust this for s3fs
+		grpcreflect.NewStaticReflector(cloudv1connect.StorageServiceName), // Adjust this for s3fs
 	))
 
 	return mux
@@ -159,72 +169,12 @@ func runServer(mux *http.ServeMux) error {
 	return nil
 }
 
-var datanodeCmd = &cobra.Command{
-	Use:   "datanode",
-	Short: "Start the datanode server",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		mux := createMux(func() (string, http.Handler) {
-			otelInterceptor, err := otelconnect.NewInterceptor()
-			if err != nil {
-				return "/", http.NotFoundHandler()
-			}
-
-			return cloudv1connect.NewDataNodeServiceHandler(
-				dsroute.NewDataNodeServer(dir, port, server),
-				connect.WithInterceptors(otelInterceptor),
-				connect.WithCompressMinBytes(CompressMinByte),
-				connect.WithSendMaxBytes(math.MaxInt32),
-				connect.WithReadMaxBytes(math.MaxInt32),
-			)
-		})
-
-		return runServer(mux)
-	},
-}
-
-var s3fsCmd = &cobra.Command{
-	Use:   "s3fs",
-	Short: "Start the s3fs server",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		mux := createMux(func() (string, http.Handler) {
-			otelInterceptor, err := otelconnect.NewInterceptor()
-			if err != nil {
-				return "/", http.NotFoundHandler()
-			}
-
-			s3 := s3fs.NewS3FSServer(blockSize, replicationFactor, port)
-			if err := discoverDataNodes(nodes, s3); err != nil {
-				return "/", http.NotFoundHandler()
-			}
-
-			go heartbeatToDataNodes(nodes, s3)
-
-			return cloudv1connect.NewStorageServiceHandler(
-				s3,
-				connect.WithInterceptors(otelInterceptor),
-				connect.WithCompressMinBytes(CompressMinByte),
-				connect.WithSendMaxBytes(math.MaxInt32),
-				connect.WithReadMaxBytes(math.MaxInt32),
-			)
-		})
-
-		return runServer(mux)
-	},
-}
-
 func init() {
 	rootCmd.AddCommand(serveCmd)
-	serveCmd.AddCommand(datanodeCmd) // Add datanode command
-	serveCmd.AddCommand(s3fsCmd)     // Add s3fs command
 
-	datanodeCmd.Flags().Uint16VarP(&port, "port", "p", 8080, "Port to run the datanode server on")
-	datanodeCmd.Flags().StringVarP(&server, "server-url", "u", "http://localhost", "Server URL for the datanode server")
-	datanodeCmd.Flags().StringVarP(&dir, "dir", "d", "./", "")
+	serveCmd.Flags().Uint16VarP(&port, "port", "p", 8080, "Port to run the datanode server on")
+	serveCmd.Flags().StringVarP(&dir, "dir", "d", "./", "")
 
-	s3fsCmd.Flags().Uint16VarP(&port, "port", "p", 8080, "Port to run the datanode server on")
-	s3fsCmd.Flags().Uint64VarP(&blockSize, "block-size", "b", 10, "Server URL for the datanode server")
-	s3fsCmd.Flags().Uint64VarP(&replicationFactor, "replication-factor", "r", 2, "Server URL for the datanode server")
-	s3fsCmd.Flags().StringArrayVarP(&nodes, "", "n", []string{}, "Server URL for the datanode server")
 }
 
 // shutdownServer gracefully shuts down the HTTP server
@@ -238,106 +188,4 @@ func shutdownServer(srv *http.Server) error {
 	}
 	slog.Info("Server shutdown completed")
 	return nil
-}
-
-// discoverDataNodes discovers data nodes and logs the process
-func discoverDataNodes(listOfDataNodes []string, s3 *s3fs.S3fs) error {
-	for i, node := range listOfDataNodes {
-		log.Printf("Discovering DataNodes ...\n")
-		slog.Debug("Processing node", "node", node)
-		uri := strings.Split(node, ":")
-		if len(uri) != 2 {
-			log.Printf("Invalid node format: %s\n", node)
-			continue
-		}
-		port, err := strconv.Atoi(uri[1])
-		if err != nil {
-			log.Printf("Error converting port: %s\n", err)
-			continue
-		}
-		client := cloudv1connect.NewDataNodeServiceClient(http.DefaultClient, fmt.Sprintf("http://%s:%d", uri[0], port))
-
-		pingResponse, err := client.Ping(context.Background(), connect.NewRequest(&v1.PingRequest{
-			Host: uri[0],
-			Port: uint32(port),
-		}))
-
-		if err != nil {
-			log.Printf("No ack received from %s:%s\n", uri[0], uri[1])
-			slog.Warn("No ack received from node", "node", node)
-			continue
-		}
-
-		if pingResponse.Msg.Ack {
-			s3.SetIdToDataNodes(s3fs.DataNodeInstance{
-				Host:        uri[0],
-				ServicePort: port,
-			}, uint64(i))
-			log.Printf("Ack received from %s:%s\n", uri[0], uri[1])
-			slog.Debug("Ack received", "node", node)
-		} else {
-			log.Printf("No ack received from %s:%s\n", uri[0], uri[1])
-			slog.Warn("No ack received from node", "node", node)
-		}
-	}
-	return nil
-}
-
-// heartbeatToDataNodes tracks heartbeats from data nodes and handles failures
-func heartbeatToDataNodes(listOfDataNodes []string, s3 *s3fs.S3fs) {
-	for range time.Tick(time.Second * 5) {
-		for i, node := range listOfDataNodes {
-			slog.Debug("Checking heartbeat for node", "node", node)
-			uri := strings.Split(node, ":")
-			if len(uri) != 2 {
-				log.Printf("Invalid node format: %s\n", node)
-				continue
-			}
-			n, err := strconv.Atoi(uri[1])
-			if len(uri) != 2 {
-				log.Printf("Invalid node format: %s\n", node)
-				continue
-			}
-			client := cloudv1connect.NewDataNodeServiceClient(http.DefaultClient, fmt.Sprintf("http://%s:%d", uri[0], n))
-			resp, err := client.Heartbeat(context.Background(), connect.NewRequest(&v1.HeartbeatRequest{}))
-			if err != nil {
-				log.Printf("Error converting port: %s\n", err)
-				slog.Error("Error during heartbeat", "node", node, "error", err)
-				// Redistribute the Data
-				result, err := s3.ReDistribute(context.Background(), connect.NewRequest(&v1.ReDistributeRequest{
-					DataNodeUri: fmt.Sprintf("%s:%d", uri[0], n),
-				}))
-
-				if err != nil {
-					log.Printf("Invalid node format: %s\n", node)
-					continue
-				}
-				fmt.Println(result.Msg.Message)
-				s3.DeleteIdToDataNodes(uint64(i))
-				continue
-			}
-
-			if resp.Msg.Status == "ok" {
-				s3.SetIdToDataNodes(s3fs.DataNodeInstance{
-					Host:        uri[0],
-					ServicePort: n,
-				}, uint64(i))
-				slog.Debug("Heartbeat OK", "node", node)
-			} else {
-				result, err := s3.ReDistribute(context.Background(), connect.NewRequest(&v1.ReDistributeRequest{
-					DataNodeUri: fmt.Sprintf("%s:%d", uri[0], n),
-				}))
-
-				if err != nil {
-					fmt.Println(n)
-					fmt.Println(uri)
-					log.Printf("Invalid node format: %s\n", node)
-					continue
-				}
-				fmt.Println(result.Msg.Message)
-				s3.DeleteIdToDataNodes(uint64(i))
-			}
-
-		}
-	}
 }

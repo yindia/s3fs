@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package cloud.v1;
+
+import "validate/validate.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+// Service for managing storage operations
+service StorageService {
+    // Sends a heartbeat signal to check service availability
+    rpc Heartbeat(HeartbeatRequestMsg) returns (HeartbeatResponseMsg);
+    // Uploads an object to storage
+    rpc Upload(UploadRequestMsg) returns (UploadResponseMsg);
+    // Retrieves an object from storage
+    rpc Get(GetObjectRequest) returns (GetObjectResponse);
+    // Deletes an object from storage
+    rpc Delete(DeleteRequestMsg) returns (DeleteStatusMsg);
+    // Lists all objects in storage
+    rpc List(ListObjectsRequest) returns (ListObjectsResponse);
+}
+
+// Request message for listing objects
+message ListObjectsRequest {
+}
+
+// Response message containing a list of object keys
+message ListObjectsResponse {
+    repeated string object_keys = 1; // List of object keys
+}
+
+// Request message for deleting an object
+message DeleteRequestMsg {
+    string object_key = 1 [(validate.rules).string = {min_len: 1, max_len: 50}]; // Key of the object to delete
+}
+
+// Response message indicating the status of the delete operation
+message DeleteStatusMsg {
+    bool status = 1; // Status of the delete operation
+}
+
+// Request message for retrieving an object
+message GetObjectRequest {
+    string object_key = 1 [(validate.rules).string = {min_len: 1, max_len: 50}]; // Key of the object to delete
+}
+
+// Response message containing the requested object data
+message GetObjectResponse {
+    bytes data = 1; // Data of the retrieved object
+}
+
+// Request message for uploading an object
+message UploadRequestMsg {
+    string object_key = 1 [(validate.rules).string = {min_len: 1, max_len: 50}]; // Key of the object to delete
+    bytes data = 2 [(validate.rules).bytes = {min_len: 1, max_len: 1000}]; // Data of the object being uploaded
+}
+
+// Response message indicating the status of the upload operation
+message UploadResponseMsg {
+    bool status = 1; // Status of the upload operation
+}
+
+// Request message for sending a heartbeat
+message HeartbeatRequestMsg {
+}
+
+// Response message containing the status of the heartbeat
+message HeartbeatResponseMsg {
+    string status = 1; // Status message from the heartbeat
+}

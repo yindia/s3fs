@@ -1,5 +1,5 @@
 [project]
-name = "bruin"
+name = "s3fs"
 version = "0.1.0"
 description = "Add a short description here"
 channels = ["conda-forge"]
@@ -11,10 +11,7 @@ platforms = ["osx-64", "osx-arm64"]
 # Dev dependencies
 pre-commit = "~=3.3.0"
 rust = "~=1.73.0"
-openssl = "3.*"
 git = "2.42.0.*"
 python = "=3.10"
-pip = "*"
 go = "=1.23"
-pyarrow = "14.0.2"
-pytest = ">=7"
+
