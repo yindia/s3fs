@@ -12,4 +12,5 @@ type DataNodeService interface {
 	Heartbeat(req *connect.Request[v1.HeartbeatRequest]) (*connect.Response[v1.HeartbeatResponse], error)   // Updated method for Heartbeat
 	PutData(req *connect.Request[v1.DataNodePutRequest]) (*connect.Response[v1.DataNodeWriteStatus], error) // Updated method for PutData
 	GetData(req *connect.Request[v1.DataNodeGetRequest]) (*connect.Response[v1.DataNodeData], error)        // Updated method for GetData
+	DeleteData(req *connect.Request[v1.DataNodeDeleteRequest]) (*connect.Response[v1.DataNodeDeleteStatus], error)
 }

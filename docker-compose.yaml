@@ -1,55 +1,50 @@
 version: '3.1'
 
 services:
-  datanode1:
-    command: ["serve", "datanode", "-d", "./data/test1" , "-p", "8080", "-u", "127.0.0.1"]
+  datanode1: &datanode_defaults  # Define common properties for datanodes
     build:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8081:8080"
+      - "8081:8081"
+    command: ["serve", "datanode", "-d", "./data/test1", "-p", "8081", "-u", "127.0.0.1"]
+    volumes:
+      - .:/app  # Mount current directory to /app in the container
+
     networks:
       - task-network
 
   datanode2:  # New datanode
-    build:
-      context: .
-      dockerfile: Dockerfile
+    <<: *datanode_defaults  # Inherit common properties
     ports:
-      - "8082:8080"
-    networks:
-      - task-network
-    command: ["serve", "datanode", "-d", "./data/test2" , "-p", "8080", "-u", "127.0.0.1"]
+      - "8082:8082"
+    command: ["serve", "datanode", "-d", "./data/test2", "-p", "8082", "-u", "127.0.0.1"]
+    volumes:
+      - .:/app  # Mount current directory to /app in the container
 
   datanode3:  # New datanode
-    build:
-      context: .
-      dockerfile: Dockerfile
+    <<: *datanode_defaults  # Inherit common properties
     ports:
-      - "8083:8080"
-    networks:
-      - task-network
-    command: ["serve", "datanode", "-d", "./data/test3" , "-p", "8080", "-u", "127.0.0.1"]
+      - "8083:8083"
+    command: ["serve", "datanode", "-d", "./data/test3", "-p", "8083", "-u", "127.0.0.1"]
+    volumes:
+      - .:/app  # Mount current directory to /app in the container
 
   datanode4:  # New datanode
-    build:
-      context: .
-      dockerfile: Dockerfile
+    <<: *datanode_defaults  # Inherit common properties
     ports:
-      - "8084:8080"
-    networks:
-      - task-network
-    command: ["serve", "datanode", "-d", "./data/test4" , "-p", "8080", "-u", "127.0.0.1"]
+      - "8084:8084"
+    command: ["serve", "datanode", "-d", "./data/test4", "-p", "8084", "-u", "127.0.0.1"]
+    volumes:
+      - .:/app  # Mount current directory to /app in the container
 
   datanode5:  # New datanode
-    build:
-      context: .
-      dockerfile: Dockerfile
+    <<: *datanode_defaults  # Inherit common properties
     ports:
-      - "8085:8080"
-    networks:
-      - task-network
-    command: ["serve", "datanode", "-d", "./data/test5" , "-p", "8080", "-u", "127.0.0.1"]
+      - "8085:8085"
+    command: ["serve", "datanode", "-d", "./data/test5", "-p", "8085", "-u", "127.0.0.1"]
+    volumes:
+      - .:/app  # Mount current directory to /app in the container
 
   server:
     build:
@@ -57,18 +52,18 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8080:8080"
-    command: ["serve", "s3fs", "-n", "datanode1:8081" ,"-n", "datanode1:8082" ,"-n", "datanode1:8083" ,"-n", "datanode1:8084" ,"-n", "datanode1:8085" , "-p", "8080", "-b", "1000", "-r", "3"]
+    command: ["serve", "s3fs", "-n", "datanode1:8081", "-n", "datanode2:8082", "-n", "datanode3:8083", "-n", "datanode4:8084", "-n", "datanode5:8085", "-p", "8080", "-b", "1000", "-r", "3"]
     depends_on:
       datanode1:
-        condition: service_healthy
-      datanode2:  # Dependency on new datanodes
-        condition: service_healthy
-      datanode3:  # Dependency on new datanodes
-        condition: service_healthy
-      datanode4:  # Dependency on new datanodes
-        condition: service_healthy
-      datanode5:  # Dependency on new datanodes
-        condition: service_healthy
+        condition: service_started  # Change to service_started
+      datanode2:
+        condition: service_started  # Change to service_started
+      datanode3:
+        condition: service_started  # Change to service_started
+      datanode4:
+        condition: service_started  # Change to service_started
+      datanode5:
+        condition: service_started  
     links:
       - datanode1
       - datanode2  # Links to new datanodes

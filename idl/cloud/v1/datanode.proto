@@ -11,23 +11,21 @@ service DataNodeService {
     rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
     rpc PutData(DataNodePutRequest) returns (DataNodeWriteStatus);
     rpc GetData(DataNodeGetRequest) returns (DataNodeData);
-}
-
-service StorageService {
-    rpc Upload(UploadRequest) returns (UploadResponse);
-    rpc Get(GetRequest) returns (GetResponse);
-    rpc ListObjects(ListObjectsRequest) returns (ListObjectsResponse);
-    rpc ReDistribute(ReDistributeRequest) returns (ReDistributeResponse);
-
+    rpc DeleteData(DataNodeDeleteRequest) returns (DataNodeDeleteStatus);
 }
 
 
-message ReDistributeRequest {
-    string data_node_uri = 1; // Corresponds to DataNodeUri in your struct
+message DataNodeDeleteRequest {
+    string block_id = 1 [(validate.rules).string = {min_len: 1, max_len: 50}];
+    repeated NodeAddress replication_nodes = 2;
 }
 
-message ReDistributeResponse {
-    string message = 1; // You can customize this field as needed
+message DataNodeDeleteStatus {
+    bool status = 1;
+}
+
+message DataNodeData {
+    string data = 1;
 }
 
 message DataNodePutRequest {
@@ -44,54 +42,10 @@ message DataNodeGetRequest {
     string block_id = 1 [(validate.rules).string = {min_len: 1, max_len: 50}];
 }
 
-message DataNodeData {
-    string data = 1;
-}
 
-message GetRequest {
-    string object_key = 1 [(validate.rules).string = {min_len: 1, max_len: 100}];
-}
-
-message GetResponse {
-    bytes data = 1;
-}
 message NodeAddress {
     string host = 1 [(validate.rules).string = {min_len: 1, max_len: 100, pattern: "^(?!-)[A-Za-z0-9-]{1,63}(?<!-)$"}];
     uint32 service_port = 2 [(validate.rules).string = {min_len: 1, max_len: 5, pattern: "^[0-9]{1,5}$"}];
-}
-
-// Define the request and response messages for each method
-message UploadRequest {
-    uint32 file_size = 1;
-    string object_key = 2 [(validate.rules).string = {min_len: 1, max_len: 100}];
-    bytes data = 3;
-}
-
-message UploadResponse {
-    string message = 1;
-}
-
-message DownloadRequest {
-    string object_key = 2 [(validate.rules).string = {min_len: 1, max_len: 100}];
-}
-
-message DownloadResponse {
-    bytes data = 1;
-}
-
-message DeleteRequest {
-    string object_key = 2 [(validate.rules).string = {min_len: 1, max_len: 100}];
-}
-
-message DeleteResponse {
-    string message = 1;
-}
-
-message ListObjectsRequest {
-}
-
-message ListObjectsResponse {
-    repeated string object_keys = 1;
 }
 
 message PingRequest {

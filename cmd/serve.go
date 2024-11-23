@@ -47,6 +47,7 @@ var (
 // newCORS initializes CORS settings for the server
 // It allows all origins and methods, and exposes necessary headers for gRPC-Web
 func newCORS() *cors.Cors {
+	slog.Debug("Initializing CORS settings")
 	return cors.New(cors.Options{
 		AllowedMethods: []string{
 			http.MethodHead,
@@ -127,6 +128,8 @@ func createMux(serviceHandler func() (string, http.Handler)) *http.ServeMux {
 func runServer(mux *http.ServeMux) error {
 	srv := initializeServer(mux)
 
+	slog.Debug("Server initialized", "address", srv.Addr)
+
 	// Start the server in a goroutine
 	serverErrChan := make(chan error, 1)
 	go func() {
@@ -144,11 +147,13 @@ func runServer(mux *http.ServeMux) error {
 	case <-exitChan:
 		slog.Info("Shutdown signal received, shutting down server...")
 	case err := <-serverErrChan:
+		slog.Error("Server error occurred", "error", err)
 		return err
 	}
 
 	// Graceful shutdown
 	if err := shutdownServer(srv); err != nil {
+		slog.Error("HTTP server shutdown failed", "error", err)
 		return fmt.Errorf("HTTP server shutdown failed: %w", err)
 	}
 	return nil
@@ -235,9 +240,11 @@ func shutdownServer(srv *http.Server) error {
 	return nil
 }
 
+// discoverDataNodes discovers data nodes and logs the process
 func discoverDataNodes(listOfDataNodes []string, s3 *s3fs.S3fs) error {
 	for i, node := range listOfDataNodes {
 		log.Printf("Discovering DataNodes ...\n")
+		slog.Debug("Processing node", "node", node)
 		uri := strings.Split(node, ":")
 		if len(uri) != 2 {
 			log.Printf("Invalid node format: %s\n", node)
@@ -257,6 +264,7 @@ func discoverDataNodes(listOfDataNodes []string, s3 *s3fs.S3fs) error {
 
 		if err != nil {
 			log.Printf("No ack received from %s:%s\n", uri[0], uri[1])
+			slog.Warn("No ack received from node", "node", node)
 			continue
 		}
 
@@ -266,8 +274,10 @@ func discoverDataNodes(listOfDataNodes []string, s3 *s3fs.S3fs) error {
 				ServicePort: port,
 			}, uint64(i))
 			log.Printf("Ack received from %s:%s\n", uri[0], uri[1])
+			slog.Debug("Ack received", "node", node)
 		} else {
 			log.Printf("No ack received from %s:%s\n", uri[0], uri[1])
+			slog.Warn("No ack received from node", "node", node)
 		}
 	}
 	return nil
@@ -277,6 +287,7 @@ func discoverDataNodes(listOfDataNodes []string, s3 *s3fs.S3fs) error {
 func heartbeatToDataNodes(listOfDataNodes []string, s3 *s3fs.S3fs) {
 	for range time.Tick(time.Second * 5) {
 		for i, node := range listOfDataNodes {
+			slog.Debug("Checking heartbeat for node", "node", node)
 			uri := strings.Split(node, ":")
 			if len(uri) != 2 {
 				log.Printf("Invalid node format: %s\n", node)
@@ -291,9 +302,10 @@ func heartbeatToDataNodes(listOfDataNodes []string, s3 *s3fs.S3fs) {
 			resp, err := client.Heartbeat(context.Background(), connect.NewRequest(&v1.HeartbeatRequest{}))
 			if err != nil {
 				log.Printf("Error converting port: %s\n", err)
+				slog.Error("Error during heartbeat", "node", node, "error", err)
 				// Redistribute the Data
 				result, err := s3.ReDistribute(context.Background(), connect.NewRequest(&v1.ReDistributeRequest{
-					DataNodeUri: fmt.Sprintf("http://%s:%d", uri[0], n),
+					DataNodeUri: fmt.Sprintf("%s:%d", uri[0], n),
 				}))
 
 				if err != nil {
@@ -310,7 +322,19 @@ func heartbeatToDataNodes(listOfDataNodes []string, s3 *s3fs.S3fs) {
 					Host:        uri[0],
 					ServicePort: n,
 				}, uint64(i))
+				slog.Debug("Heartbeat OK", "node", node)
 			} else {
+				result, err := s3.ReDistribute(context.Background(), connect.NewRequest(&v1.ReDistributeRequest{
+					DataNodeUri: fmt.Sprintf("%s:%d", uri[0], n),
+				}))
+
+				if err != nil {
+					fmt.Println(n)
+					fmt.Println(uri)
+					log.Printf("Invalid node format: %s\n", node)
+					continue
+				}
+				fmt.Println(result.Msg.Message)
 				s3.DeleteIdToDataNodes(uint64(i))
 			}
 
