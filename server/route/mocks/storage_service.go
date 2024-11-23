@@ -84,34 +84,22 @@ func (_c *StorageService_Delete_Call) RunAndReturn(run func(context.Context, *co
 	return _c
 }
 
-// Get provides a mock function with given fields: ctx, req
-func (_m *StorageService) Get(ctx context.Context, req *connect.Request[cloudv1.GetObjectRequest]) (*connect.Response[cloudv1.GetObjectResponse], error) {
-	ret := _m.Called(ctx, req)
+// Get provides a mock function with given fields: ctx, req, stream
+func (_m *StorageService) Get(ctx context.Context, req *connect.Request[cloudv1.GetObjectRequest], stream *connect.ServerStream[cloudv1.GetObjectResponse]) error {
+	ret := _m.Called(ctx, req, stream)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Get")
 	}
 
-	var r0 *connect.Response[cloudv1.GetObjectResponse]
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *connect.Request[cloudv1.GetObjectRequest]) (*connect.Response[cloudv1.GetObjectResponse], error)); ok {
-		return rf(ctx, req)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, *connect.Request[cloudv1.GetObjectRequest]) *connect.Response[cloudv1.GetObjectResponse]); ok {
-		r0 = rf(ctx, req)
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *connect.Request[cloudv1.GetObjectRequest], *connect.ServerStream[cloudv1.GetObjectResponse]) error); ok {
+		r0 = rf(ctx, req, stream)
 	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*connect.Response[cloudv1.GetObjectResponse])
-		}
+		r0 = ret.Error(0)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *connect.Request[cloudv1.GetObjectRequest]) error); ok {
-		r1 = rf(ctx, req)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
+	return r0
 }
 
 // StorageService_Get_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Get'
@@ -122,23 +110,24 @@ type StorageService_Get_Call struct {
 // Get is a helper method to define mock.On call
 //   - ctx context.Context
 //   - req *connect.Request[cloudv1.GetObjectRequest]
-func (_e *StorageService_Expecter) Get(ctx interface{}, req interface{}) *StorageService_Get_Call {
-	return &StorageService_Get_Call{Call: _e.mock.On("Get", ctx, req)}
+//   - stream *connect.ServerStream[cloudv1.GetObjectResponse]
+func (_e *StorageService_Expecter) Get(ctx interface{}, req interface{}, stream interface{}) *StorageService_Get_Call {
+	return &StorageService_Get_Call{Call: _e.mock.On("Get", ctx, req, stream)}
 }
 
-func (_c *StorageService_Get_Call) Run(run func(ctx context.Context, req *connect.Request[cloudv1.GetObjectRequest])) *StorageService_Get_Call {
+func (_c *StorageService_Get_Call) Run(run func(ctx context.Context, req *connect.Request[cloudv1.GetObjectRequest], stream *connect.ServerStream[cloudv1.GetObjectResponse])) *StorageService_Get_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*connect.Request[cloudv1.GetObjectRequest]))
+		run(args[0].(context.Context), args[1].(*connect.Request[cloudv1.GetObjectRequest]), args[2].(*connect.ServerStream[cloudv1.GetObjectResponse]))
 	})
 	return _c
 }
 
-func (_c *StorageService_Get_Call) Return(_a0 *connect.Response[cloudv1.GetObjectResponse], _a1 error) *StorageService_Get_Call {
-	_c.Call.Return(_a0, _a1)
+func (_c *StorageService_Get_Call) Return(_a0 error) *StorageService_Get_Call {
+	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *StorageService_Get_Call) RunAndReturn(run func(context.Context, *connect.Request[cloudv1.GetObjectRequest]) (*connect.Response[cloudv1.GetObjectResponse], error)) *StorageService_Get_Call {
+func (_c *StorageService_Get_Call) RunAndReturn(run func(context.Context, *connect.Request[cloudv1.GetObjectRequest], *connect.ServerStream[cloudv1.GetObjectResponse]) error) *StorageService_Get_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -261,9 +250,9 @@ func (_c *StorageService_List_Call) RunAndReturn(run func(context.Context, *conn
 	return _c
 }
 
-// Upload provides a mock function with given fields: ctx, req
-func (_m *StorageService) Upload(ctx context.Context, req *connect.Request[cloudv1.UploadRequestMsg]) (*connect.Response[cloudv1.UploadResponseMsg], error) {
-	ret := _m.Called(ctx, req)
+// Upload provides a mock function with given fields: ctx, stream
+func (_m *StorageService) Upload(ctx context.Context, stream *connect.ClientStream[cloudv1.UploadRequestMsg]) (*connect.Response[cloudv1.UploadResponseMsg], error) {
+	ret := _m.Called(ctx, stream)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Upload")
@@ -271,19 +260,19 @@ func (_m *StorageService) Upload(ctx context.Context, req *connect.Request[cloud
 
 	var r0 *connect.Response[cloudv1.UploadResponseMsg]
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *connect.Request[cloudv1.UploadRequestMsg]) (*connect.Response[cloudv1.UploadResponseMsg], error)); ok {
-		return rf(ctx, req)
+	if rf, ok := ret.Get(0).(func(context.Context, *connect.ClientStream[cloudv1.UploadRequestMsg]) (*connect.Response[cloudv1.UploadResponseMsg], error)); ok {
+		return rf(ctx, stream)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *connect.Request[cloudv1.UploadRequestMsg]) *connect.Response[cloudv1.UploadResponseMsg]); ok {
-		r0 = rf(ctx, req)
+	if rf, ok := ret.Get(0).(func(context.Context, *connect.ClientStream[cloudv1.UploadRequestMsg]) *connect.Response[cloudv1.UploadResponseMsg]); ok {
+		r0 = rf(ctx, stream)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*connect.Response[cloudv1.UploadResponseMsg])
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *connect.Request[cloudv1.UploadRequestMsg]) error); ok {
-		r1 = rf(ctx, req)
+	if rf, ok := ret.Get(1).(func(context.Context, *connect.ClientStream[cloudv1.UploadRequestMsg]) error); ok {
+		r1 = rf(ctx, stream)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -298,14 +287,14 @@ type StorageService_Upload_Call struct {
 
 // Upload is a helper method to define mock.On call
 //   - ctx context.Context
-//   - req *connect.Request[cloudv1.UploadRequestMsg]
-func (_e *StorageService_Expecter) Upload(ctx interface{}, req interface{}) *StorageService_Upload_Call {
-	return &StorageService_Upload_Call{Call: _e.mock.On("Upload", ctx, req)}
+//   - stream *connect.ClientStream[cloudv1.UploadRequestMsg]
+func (_e *StorageService_Expecter) Upload(ctx interface{}, stream interface{}) *StorageService_Upload_Call {
+	return &StorageService_Upload_Call{Call: _e.mock.On("Upload", ctx, stream)}
 }
 
-func (_c *StorageService_Upload_Call) Run(run func(ctx context.Context, req *connect.Request[cloudv1.UploadRequestMsg])) *StorageService_Upload_Call {
+func (_c *StorageService_Upload_Call) Run(run func(ctx context.Context, stream *connect.ClientStream[cloudv1.UploadRequestMsg])) *StorageService_Upload_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*connect.Request[cloudv1.UploadRequestMsg]))
+		run(args[0].(context.Context), args[1].(*connect.ClientStream[cloudv1.UploadRequestMsg]))
 	})
 	return _c
 }
@@ -315,7 +304,7 @@ func (_c *StorageService_Upload_Call) Return(_a0 *connect.Response[cloudv1.Uploa
 	return _c
 }
 
-func (_c *StorageService_Upload_Call) RunAndReturn(run func(context.Context, *connect.Request[cloudv1.UploadRequestMsg]) (*connect.Response[cloudv1.UploadResponseMsg], error)) *StorageService_Upload_Call {
+func (_c *StorageService_Upload_Call) RunAndReturn(run func(context.Context, *connect.ClientStream[cloudv1.UploadRequestMsg]) (*connect.Response[cloudv1.UploadResponseMsg], error)) *StorageService_Upload_Call {
 	_c.Call.Return(run)
 	return _c
 }

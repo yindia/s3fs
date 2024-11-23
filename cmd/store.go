@@ -2,14 +2,17 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
+	"log"
 	"net/http"
+	"os"
 	v1 "s3fs/pkg/gen/cloud/v1"
 	"s3fs/pkg/gen/cloud/v1/cloudv1connect"
+	"text/tabwriter"
 
 	"connectrpc.com/connect"
+	"github.com/schollz/progressbar/v3"
 	"github.com/spf13/cobra"
 )
 
@@ -27,23 +30,41 @@ func createStorageClient() cloudv1connect.StorageServiceClient {
 
 // getCmd retrieves an item from the store
 var getCmd = &cobra.Command{
-	Use:   "get [key]",
+	Use:   "get [key] [output_file]",
 	Short: "Get an item from the store",
-	Long:  "Retrieves an item from the store using the specified key. The result is returned in JSON format.",
-	Args:  cobra.ExactArgs(1),
+	Long:  "Retrieves an item from the store using the specified key and writes the result to the specified output file.",
+	Args:  cobra.ExactArgs(2), // Changed to expect 2 arguments
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client := createStorageClient()
-		pingResponse, err := client.Get(context.Background(), connect.NewRequest(&v1.GetObjectRequest{
+		log.Printf("Attempting to retrieve item with key: '%s'", args[0])
+		response, err := client.Get(context.Background(), connect.NewRequest(&v1.GetObjectRequest{
 			ObjectKey: args[0],
 		}))
 		if err != nil {
+			log.Printf("Error retrieving item: %s", err)
 			return fmt.Errorf("failed to get item with key '%s': %w", args[0], err)
 		}
-		responseJSON, err := json.MarshalIndent(pingResponse.Msg.Data, "", " ")
+
+		// Create a progress bar
+		bar := progressbar.NewOptions64(-1,
+			progressbar.OptionSetDescription("Downloading..."), // Initial description
+			progressbar.OptionShowCount(),
+			progressbar.OptionSetWidth(15),
+		)
+		file, err := os.OpenFile(args[1], os.O_CREATE|os.O_WRONLY, 0644) // Use args[1] for output file
 		if err != nil {
-			return fmt.Errorf("failed to marshal response to JSON: %w", err)
+			return fmt.Errorf("failed to open file '%s': %w", args[1], err)
 		}
-		fmt.Println(string(responseJSON))
+		defer file.Close()
+
+		for response.Receive() {
+			message := response.Msg()
+			if _, err := file.Write(message.Data); err != nil {
+				return fmt.Errorf("failed to write to file '%s': %w", args[1], err)
+			}
+			bar.Add(len(message.Data))
+		}
+
 		return nil
 	},
 }
@@ -56,13 +77,15 @@ var deleteCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client := createStorageClient()
-		pingResponse, err := client.Delete(context.Background(), connect.NewRequest(&v1.DeleteRequestMsg{
+		log.Printf("Attempting to delete item with key: '%s'", args[0])
+		deleteResponse, err := client.Delete(context.Background(), connect.NewRequest(&v1.DeleteRequestMsg{
 			ObjectKey: args[0],
 		}))
 		if err != nil {
+			log.Printf("Error deleting item: %s", err)
 			return fmt.Errorf("failed to delete item with key '%s': %w", args[0], err)
 		}
-		fmt.Println(pingResponse.Msg.Status)
+		fmt.Println(deleteResponse.Msg.Status)
 		return nil
 	},
 }
@@ -71,22 +94,55 @@ var deleteCmd = &cobra.Command{
 var uploadCmd = &cobra.Command{
 	Use:   "upload [key] [file]",
 	Short: "Upload an item to the store",
-	Long:  "Uploads an item to the store with the specified key and file. The file's content is sent to the storage service.",
+	Long:  "Uploads an item to the store with the specified key and file. The file's content is sent to the storage service in smaller chunks.",
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client := createStorageClient()
-		data, err := ioutil.ReadFile(args[1])
+		stream := client.Upload(context.Background())
+		file, err := os.Open(args[1])
 		if err != nil {
-			return fmt.Errorf("failed to read file '%s': %w", args[1], err)
+			return fmt.Errorf("failed to open file '%s': %w", args[1], err)
 		}
-		pingResponse, err := client.Upload(context.Background(), connect.NewRequest(&v1.UploadRequestMsg{
-			ObjectKey: args[0],
-			Data:      data,
-		}))
+		defer file.Close()
+
+		// Check if the file is empty
+		fileInfo, err := file.Stat()
 		if err != nil {
-			return fmt.Errorf("failed to upload item with key '%s': %w", args[0], err)
+			return fmt.Errorf("failed to get file info for '%s': %w", args[1], err)
 		}
-		fmt.Println(pingResponse.Msg.Status)
+		if fileInfo.Size() == 0 {
+			return fmt.Errorf("file '%s' is empty", args[1])
+		}
+
+		const chunkSize = 1024 * 1024
+		buffer := make([]byte, chunkSize)
+		totalChunks := 0
+
+		bar := progressbar.NewOptions64(fileInfo.Size()/int64(chunkSize),
+			progressbar.OptionSetDescription("Uploading..."),
+			progressbar.OptionShowCount(),
+			progressbar.OptionSetWidth(15),
+		)
+		for {
+			n, err := file.Read(buffer)
+			if err != nil && err != io.EOF {
+				return fmt.Errorf("failed to read file '%s': %w", args[1], err)
+			}
+			if n == 0 {
+				break
+			}
+
+			totalChunks++
+			bar.Add(1)
+			if err := stream.Send(&v1.UploadRequestMsg{
+				ObjectKey: args[0],
+				Data:      buffer[:n],
+			}); err != nil {
+				return fmt.Errorf("failed to send upload request: %w", err)
+			}
+		}
+
+		fmt.Printf("Uploaded %d chunks successfully for key '%s'\n", totalChunks, args[0])
 		return nil
 	},
 }
@@ -98,15 +154,25 @@ var listCmd = &cobra.Command{
 	Long:  "Lists all items currently stored in the storage system. The result is returned in JSON format.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client := createStorageClient()
-		pingResponse, err := client.List(context.Background(), connect.NewRequest(&v1.ListObjectsRequest{}))
+		response, err := client.List(context.Background(), connect.NewRequest(&v1.ListObjectsRequest{}))
 		if err != nil {
 			return fmt.Errorf("failed to list items: %w", err)
 		}
-		responseJSON, err := json.Marshal(pingResponse.Msg.ObjectKeys)
-		if err != nil {
-			return fmt.Errorf("failed to marshal object keys to JSON: %w", err)
+		// Create a slice to hold the item metadata
+		var metadataList []string
+		for _, data := range response.Msg.Metadata {
+			metadataList = append(metadataList, fmt.Sprintf("%s\t%s\t%d", data.ObjectKey, data.Extension, data.FileSize)) // Collect metadata
 		}
-		fmt.Println(string(responseJSON))
+
+		// Print the metadata in a table format
+		w := new(tabwriter.Writer)
+		w.Init(os.Stdout, 0, 8, 0, '\t', 0)      // Initialize tab writer
+		fmt.Fprintln(w, "Name\tExtension\tSize") // Print header
+		for _, entry := range metadataList {
+			fmt.Fprintln(w, entry) // Print each metadata entry
+		}
+		w.Flush() // Flush the writer to output
+
 		return nil
 	},
 }

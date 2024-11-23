@@ -11,9 +11,9 @@ service StorageService {
     // Sends a heartbeat signal to check service availability
     rpc Heartbeat(HeartbeatRequestMsg) returns (HeartbeatResponseMsg);
     // Uploads an object to storage
-    rpc Upload(UploadRequestMsg) returns (UploadResponseMsg);
+    rpc Upload(stream UploadRequestMsg) returns (UploadResponseMsg);
     // Retrieves an object from storage
-    rpc Get(GetObjectRequest) returns (GetObjectResponse);
+    rpc Get(GetObjectRequest) returns (stream GetObjectResponse);
     // Deletes an object from storage
     rpc Delete(DeleteRequestMsg) returns (DeleteStatusMsg);
     // Lists all objects in storage
@@ -24,9 +24,17 @@ service StorageService {
 message ListObjectsRequest {
 }
 
+
+message FileMetadata { // Changed 'struct' to 'message'
+    string object_key = 1; // The key of the object
+    uint32 file_size = 2; // The size of the file
+    string extension = 3; // The file extension
+}
+
+
 // Response message containing a list of object keys
 message ListObjectsResponse {
-    repeated string object_keys = 1; // List of object keys
+    repeated FileMetadata metadata = 1; // List of object keys
 }
 
 // Request message for deleting an object
@@ -46,13 +54,13 @@ message GetObjectRequest {
 
 // Response message containing the requested object data
 message GetObjectResponse {
-    bytes data = 1; // Data of the retrieved object
+    bytes data = 1 [(validate.rules).bytes.len = 1048576]; // Data of the retrieved object
 }
 
 // Request message for uploading an object
 message UploadRequestMsg {
-    string object_key = 1 [(validate.rules).string = {min_len: 1, max_len: 50}]; // Key of the object to delete
-    bytes data = 2 [(validate.rules).bytes = {min_len: 1, max_len: 1000}]; // Data of the object being uploaded
+    string object_key = 1 [(validate.rules).string = {min_len: 1, max_len: 50}]; // Key of the object to upload
+    bytes data = 2 [(validate.rules).bytes.len = 1048576]; // Data of the object being uploaded, must be exactly 1,024,000 bytes
 }
 
 // Response message indicating the status of the upload operation

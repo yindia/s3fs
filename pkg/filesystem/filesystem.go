@@ -10,7 +10,7 @@ import (
 type Filesystem interface {
 	EnsureDirectory(path string) error
 	WriteFile(path string, data string) error
-	ReadFile(path string) (string, error)
+	ReadFile(path string) ([]byte, error)
 	DeleteFile(path string) error
 	ListFiles(directory string) ([]string, error)
 }
@@ -42,12 +42,12 @@ func (fs *FilesystemImpl) WriteFile(path string, data string) error {
 }
 
 // ReadFile reads data from a file at the specified path.
-func (fs *FilesystemImpl) ReadFile(path string) (string, error) {
+func (fs *FilesystemImpl) ReadFile(path string) ([]byte, error) {
 	dataBytes, err := ioutil.ReadFile(path)
 	if err != nil {
-		return "", fmt.Errorf("failed to read file %s: %w", path, err)
+		return dataBytes, fmt.Errorf("failed to read file %s: %w", path, err)
 	}
-	return string(dataBytes), nil
+	return dataBytes, nil
 }
 
 // DeleteFile deletes the file at the specified path.

@@ -1,7 +1,7 @@
 # Project configuration
 CLI_NAME := s3fs
 BUILD_DIR := bin
-CLI_SRC := ./cli
+CLI_SRC := ./
 
 # Docker configuration
 DOCKER_REPO := ghcr.io/yindia
@@ -24,11 +24,12 @@ all: deps test build
 deps: deps-go 
 
 # Install Go dependencies
-deps-go: check-go
+deps-go: check-go test
+	buf format idl 
+	buf generate idl
 	go mod download
 	go fmt ./...
 	go generate ./...
-
 
 # Check if Go is installed
 check-go:
@@ -56,7 +57,6 @@ docker-push-cli: docker-build-cli
 test: deps
 	@echo "$(OK_COLOR)==> Running the unit tests$(NO_COLOR)"
 	@go test -race -tags unit -cover ./...
-	cd $(DASHBOARD_SRC) && npm test
 
 # Combined targets
 build: build-cli 
@@ -97,4 +97,5 @@ helm: helm-dep-update helm-template helm-lint helm-fmt helm-docs
 bootstrap:
 	curl -fsSL https://pixi.sh/install.sh | bash
 	brew install bufbuild/buf/buf
+	brew install mockery
 	pixi shell

@@ -15,10 +15,10 @@ type StorageService interface {
 	Heartbeat(ctx context.Context, req *connect.Request[v1.HeartbeatRequestMsg]) (*connect.Response[v1.HeartbeatResponseMsg], error)
 
 	// Upload uploads a file to the storage service.
-	Upload(ctx context.Context, req *connect.Request[v1.UploadRequestMsg]) (*connect.Response[v1.UploadResponseMsg], error)
+	Upload(ctx context.Context, stream *connect.ClientStream[v1.UploadRequestMsg]) (*connect.Response[v1.UploadResponseMsg], error)
 
 	// Get retrieves an object from the storage service.
-	Get(ctx context.Context, req *connect.Request[v1.GetObjectRequest]) (*connect.Response[v1.GetObjectResponse], error)
+	Get(ctx context.Context, req *connect.Request[v1.GetObjectRequest], stream *connect.ServerStream[v1.GetObjectResponse]) error
 
 	// Delete removes an object from the storage service.
 	Delete(ctx context.Context, req *connect.Request[v1.DeleteRequestMsg]) (*connect.Response[v1.DeleteStatusMsg], error)

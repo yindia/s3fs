@@ -26,12 +26,12 @@ import (
 )
 
 const (
-	CompressMinByte = 1024 // Minimum byte size for compression
+	CompressMinBytes = 1024 // Minimum byte size for compression
 )
 
 var (
-	port uint16
-	dir  string
+	serverPort uint16
+	dataDir    string
 )
 
 // newCORS initializes CORS settings for the server
@@ -74,7 +74,7 @@ var serveCmd = &cobra.Command{
 	Short:   "Start the S3 server",
 	Long:    "This command starts the S3 server with the specified configurations.",
 	Example: `  `,
-	Args:    cobra.ExactArgs(1),
+	Args:    cobra.ExactArgs(0),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		mux := createMux(createServiceHandler())
 		return runServer(mux)
@@ -86,13 +86,14 @@ func createServiceHandler() func() (string, http.Handler) {
 	return func() (string, http.Handler) {
 		otelInterceptor, err := otelconnect.NewInterceptor()
 		if err != nil {
+			slog.Error("Failed to create OpenTelemetry interceptor", "error", err)
 			return "/", http.NotFoundHandler()
 		}
 
 		return cloudv1connect.NewStorageServiceHandler(
-			dsroute.NewStorage(dir),
+			dsroute.NewStorage(dataDir),
 			connect.WithInterceptors(otelInterceptor),
-			connect.WithCompressMinBytes(CompressMinByte),
+			connect.WithCompressMinBytes(CompressMinBytes),
 			connect.WithSendMaxBytes(math.MaxInt32),
 			connect.WithReadMaxBytes(math.MaxInt32),
 		)
@@ -102,7 +103,7 @@ func createServiceHandler() func() (string, http.Handler) {
 // initializeServer initializes and returns a new HTTP server
 func initializeServer(mux *http.ServeMux) *http.Server {
 	return &http.Server{
-		Addr: fmt.Sprintf("0.0.0.0:%d", port),
+		Addr: fmt.Sprintf("0.0.0.0:%d", serverPort),
 		Handler: h2c.NewHandler(
 			newCORS().Handler(mux),
 			&http2.Server{},
@@ -172,9 +173,8 @@ func runServer(mux *http.ServeMux) error {
 func init() {
 	rootCmd.AddCommand(serveCmd)
 
-	serveCmd.Flags().Uint16VarP(&port, "port", "p", 8080, "Port to run the datanode server on")
-	serveCmd.Flags().StringVarP(&dir, "dir", "d", "./", "")
-
+	serveCmd.Flags().Uint16VarP(&serverPort, "port", "p", 8080, "Port to run the datanode server on")
+	serveCmd.Flags().StringVarP(&dataDir, "dir", "d", "./", "Directory for data storage")
 }
 
 // shutdownServer gracefully shuts down the HTTP server

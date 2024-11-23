@@ -51,9 +51,9 @@ type StorageServiceClient interface {
 	// Sends a heartbeat signal to check service availability
 	Heartbeat(context.Context, *connect.Request[v1.HeartbeatRequestMsg]) (*connect.Response[v1.HeartbeatResponseMsg], error)
 	// Uploads an object to storage
-	Upload(context.Context, *connect.Request[v1.UploadRequestMsg]) (*connect.Response[v1.UploadResponseMsg], error)
+	Upload(context.Context) *connect.ClientStreamForClient[v1.UploadRequestMsg, v1.UploadResponseMsg]
 	// Retrieves an object from storage
-	Get(context.Context, *connect.Request[v1.GetObjectRequest]) (*connect.Response[v1.GetObjectResponse], error)
+	Get(context.Context, *connect.Request[v1.GetObjectRequest]) (*connect.ServerStreamForClient[v1.GetObjectResponse], error)
 	// Deletes an object from storage
 	Delete(context.Context, *connect.Request[v1.DeleteRequestMsg]) (*connect.Response[v1.DeleteStatusMsg], error)
 	// Lists all objects in storage
@@ -113,13 +113,13 @@ func (c *storageServiceClient) Heartbeat(ctx context.Context, req *connect.Reque
 }
 
 // Upload calls cloud.v1.StorageService.Upload.
-func (c *storageServiceClient) Upload(ctx context.Context, req *connect.Request[v1.UploadRequestMsg]) (*connect.Response[v1.UploadResponseMsg], error) {
-	return c.upload.CallUnary(ctx, req)
+func (c *storageServiceClient) Upload(ctx context.Context) *connect.ClientStreamForClient[v1.UploadRequestMsg, v1.UploadResponseMsg] {
+	return c.upload.CallClientStream(ctx)
 }
 
 // Get calls cloud.v1.StorageService.Get.
-func (c *storageServiceClient) Get(ctx context.Context, req *connect.Request[v1.GetObjectRequest]) (*connect.Response[v1.GetObjectResponse], error) {
-	return c.get.CallUnary(ctx, req)
+func (c *storageServiceClient) Get(ctx context.Context, req *connect.Request[v1.GetObjectRequest]) (*connect.ServerStreamForClient[v1.GetObjectResponse], error) {
+	return c.get.CallServerStream(ctx, req)
 }
 
 // Delete calls cloud.v1.StorageService.Delete.
@@ -137,9 +137,9 @@ type StorageServiceHandler interface {
 	// Sends a heartbeat signal to check service availability
 	Heartbeat(context.Context, *connect.Request[v1.HeartbeatRequestMsg]) (*connect.Response[v1.HeartbeatResponseMsg], error)
 	// Uploads an object to storage
-	Upload(context.Context, *connect.Request[v1.UploadRequestMsg]) (*connect.Response[v1.UploadResponseMsg], error)
+	Upload(context.Context, *connect.ClientStream[v1.UploadRequestMsg]) (*connect.Response[v1.UploadResponseMsg], error)
 	// Retrieves an object from storage
-	Get(context.Context, *connect.Request[v1.GetObjectRequest]) (*connect.Response[v1.GetObjectResponse], error)
+	Get(context.Context, *connect.Request[v1.GetObjectRequest], *connect.ServerStream[v1.GetObjectResponse]) error
 	// Deletes an object from storage
 	Delete(context.Context, *connect.Request[v1.DeleteRequestMsg]) (*connect.Response[v1.DeleteStatusMsg], error)
 	// Lists all objects in storage
@@ -157,12 +157,12 @@ func NewStorageServiceHandler(svc StorageServiceHandler, opts ...connect.Handler
 		svc.Heartbeat,
 		opts...,
 	)
-	storageServiceUploadHandler := connect.NewUnaryHandler(
+	storageServiceUploadHandler := connect.NewClientStreamHandler(
 		StorageServiceUploadProcedure,
 		svc.Upload,
 		opts...,
 	)
-	storageServiceGetHandler := connect.NewUnaryHandler(
+	storageServiceGetHandler := connect.NewServerStreamHandler(
 		StorageServiceGetProcedure,
 		svc.Get,
 		opts...,
@@ -202,12 +202,12 @@ func (UnimplementedStorageServiceHandler) Heartbeat(context.Context, *connect.Re
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("cloud.v1.StorageService.Heartbeat is not implemented"))
 }
 
-func (UnimplementedStorageServiceHandler) Upload(context.Context, *connect.Request[v1.UploadRequestMsg]) (*connect.Response[v1.UploadResponseMsg], error) {
+func (UnimplementedStorageServiceHandler) Upload(context.Context, *connect.ClientStream[v1.UploadRequestMsg]) (*connect.Response[v1.UploadResponseMsg], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("cloud.v1.StorageService.Upload is not implemented"))
 }
 
-func (UnimplementedStorageServiceHandler) Get(context.Context, *connect.Request[v1.GetObjectRequest]) (*connect.Response[v1.GetObjectResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("cloud.v1.StorageService.Get is not implemented"))
+func (UnimplementedStorageServiceHandler) Get(context.Context, *connect.Request[v1.GetObjectRequest], *connect.ServerStream[v1.GetObjectResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("cloud.v1.StorageService.Get is not implemented"))
 }
 
 func (UnimplementedStorageServiceHandler) Delete(context.Context, *connect.Request[v1.DeleteRequestMsg]) (*connect.Response[v1.DeleteStatusMsg], error) {
