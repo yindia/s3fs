@@ -9,9 +9,7 @@
 # Ignore vendor directory
 /vendor/
 
-# Ignore Go module files
-go.sum
-go.mod
+
 
 # Ignore IDE and editor files
 *.idea/

@@ -35,3 +35,16 @@ brew install s3fs
 - For installation on Linux and Windows, we can generate a bash script from Goreleaser that will provide one-click installation.
 
 **Note:** This has not been implemented because we need a repository setup.
+
+
+- To create a deployment for a new release, we use a Helm chart. For testing, a Kind cluster is created to mimic a production environment.
+
+```shell
+kind create cluster
+kubectl get ns
+```
+
+Once the Kubernetes cluster is up and running, run the following Helm command:
+```shell
+helm upgrade s3fs ./charts/s3fs -n s3fs --create-namespace --install
+```

@@ -62,6 +62,42 @@ Once the server is up and running, you can use the CLI to interact with the serv
 
 Use `s3fs store --help` for more information on each command.
 
+
+## Kubernetes Deployment
+To deploy the service, we utilize a Helm chart. For testing purposes, a Kind cluster is created to simulate a production environment.
+
+### Setting up the Kind Cluster
+To create a Kind cluster for testing, execute the following command:
+```shell
+kind create cluster
+```
+After the cluster is created, verify the available namespaces using:
+```shell
+kubectl get ns
+```
+
+### Deploying the Service with Helm
+Once the Kubernetes cluster is up and running, use the following Helm command to deploy the service:
+```shell
+helm upgrade s3fs ./charts/s3fs -n s3fs --create-namespace --install
+```
+This command will upgrade or install the `s3fs` service in the `s3fs` namespace, creating the namespace if it does not exist.
+
+### Forwarding Ports for Service Access
+To access the service from outside the cluster, you need to forward a port. Run the following command to forward port 8080 to the service's port 80:
+```shell
+kubectl port-forward service/s3fs 8080:80
+```
+This allows you to access the service at `http://localhost:8080`.
+
+### Using the CLI with the Forwarded Service
+To use the `s3fs` CLI with the forwarded service, specify the custom address using the `--address` flag. For example, to list items in the store, run:
+```shell
+./bin/s3fs store list --address http://localhost:8080
+```
+This command will interact with the service at the forwarded address.
+
+
 ### Example Usage
 
 #### Upload a File

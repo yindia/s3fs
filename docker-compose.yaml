@@ -2,16 +2,12 @@ version: '3.1'
 
 services:
   server:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: evalsocket/s3fs-cli:59fc6c2-dirty
     ports:
       - "8080:8080"
-    command: ["serve", "-d", "./data"]
+    command: ["serve", "--log-level", "debug"]
     networks:
       - s3fs-network
-    environment:
-      - NODE_ENV=production
     restart: unless-stopped
 
 networks:
