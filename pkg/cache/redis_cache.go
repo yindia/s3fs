@@ -36,7 +36,7 @@ func (r *RedisCache) Get(key string) ([]byte, bool) {
 		if err == redis.Nil {
 			return nil, false
 		}
-		return nil, false // Handle other errors as needed
+		return nil, false
 	}
 	return []byte(val), true
 }
@@ -44,4 +44,26 @@ func (r *RedisCache) Get(key string) ([]byte, bool) {
 // Delete removes the value from the Redis cache
 func (r *RedisCache) Delete(key string) error {
 	return r.client.Del(r.ctx, key).Err()
+}
+
+// GetAll retrieves all values from the Redis cache
+func (r *RedisCache) GetAll() ([][]byte, bool) {
+	keys, err := r.client.Keys(r.ctx, "*").Result() // Get all keys
+	if err != nil {
+		return nil, false
+	}
+
+	values := make([][]byte, 0, len(keys))
+	for _, key := range keys {
+		val, err := r.client.Get(r.ctx, key).Result()
+		if err != nil {
+			if err == redis.Nil {
+				continue // Key does not exist, skip it
+			}
+			return nil, false
+		}
+		values = append(values, []byte(val))
+	}
+
+	return values, len(values) > 0
 }

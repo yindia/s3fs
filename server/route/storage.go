@@ -10,20 +10,10 @@ import (
 	"s3fs/pkg/filesystem"
 	v1 "s3fs/pkg/gen/cloud/v1"
 	"s3fs/pkg/gen/cloud/v1/cloudv1connect"
-	"sync"
 
 	"connectrpc.com/connect"
 	"github.com/bufbuild/protovalidate-go"
 )
-
-const BlockIdsCacheKey = "blockIds"
-
-// FileMetadata holds information about a file in storage.
-type FileMetadata struct {
-	ObjectKey string // The key of the object
-	FileSize  uint32 // The size of the file
-	Extension string // The file extension
-}
 
 // Storage represents the S3 file system service.
 type Storage struct {
@@ -31,7 +21,6 @@ type Storage struct {
 	dataDirectory string
 	cache         cache.Cache
 	filesystem    filesystem.Filesystem
-	mu            sync.Mutex // Mutex for thread safety
 }
 
 // NewStorage initializes a new S3fs server.
@@ -78,7 +67,7 @@ func (s *Storage) Upload(ctx context.Context, stream *connect.ClientStream[v1.Up
 			if err := os.WriteFile(fullPath, []byte{}, 0644); err != nil {
 				return nil, s.logError("Failed to create blank file", err)
 			}
-			break // Exit the loop for blank file
+			break
 		}
 
 		fileSize += uint32(len(data))
@@ -91,6 +80,7 @@ func (s *Storage) Upload(ctx context.Context, stream *connect.ClientStream[v1.Up
 			if err != nil {
 				return nil, s.logError("Failed to open file for writing", err)
 			}
+
 		}
 
 		// Write the chunk to the file
@@ -99,23 +89,19 @@ func (s *Storage) Upload(ctx context.Context, stream *connect.ClientStream[v1.Up
 		}
 	}
 
-	if err := stream.Err(); err != nil {
-		return nil, connect.NewError(connect.CodeUnknown, err)
-	}
-
-	// Locking to prevent race conditions when updating cache
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	// Create metadata for the uploaded file
-	metadata := FileMetadata{
+	metadata := v1.FileMetadata{
 		ObjectKey: objectKey,
 		FileSize:  fileSize,
-		Extension: filepath.Ext(objectKey), // Store the file extension
+		Extension: filepath.Ext(objectKey),
 	}
 
 	if err := s.updateBlockIdsCache(metadata); err != nil {
 		log.Println("Error caching file metadata:", err)
+	}
+
+	if err := stream.Err(); err != nil {
+		return nil, connect.NewError(connect.CodeUnknown, err)
 	}
 
 	return connect.NewResponse(&v1.UploadResponseMsg{
@@ -168,7 +154,7 @@ func (s *Storage) Delete(ctx context.Context, req *connect.Request[v1.DeleteRequ
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 		log.Printf("File does not exist, cannot delete: %s", fullPath)
 		return connect.NewResponse(&v1.DeleteStatusMsg{
-			Status: false,
+			Status: true,
 		}), nil
 	}
 
@@ -176,9 +162,6 @@ func (s *Storage) Delete(ctx context.Context, req *connect.Request[v1.DeleteRequ
 		return nil, s.logError("Failed to delete file", err)
 	}
 
-	// Locking to prevent race conditions when updating cache
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if err := s.updateBlockIdsCacheAfterDelete(req.Msg.ObjectKey); err != nil {
 		log.Println("Error updating BlockIds cache after delete:", err)
 	}
@@ -194,45 +177,21 @@ func (s *Storage) Delete(ctx context.Context, req *connect.Request[v1.DeleteRequ
 func (s *Storage) List(ctx context.Context, req *connect.Request[v1.ListObjectsRequest]) (*connect.Response[v1.ListObjectsResponse], error) {
 	log.Println("Debug: Starting List method")
 
-	// Check if BlockIds are cached
-	cachedMetadata, exists := s.cache.Get(BlockIdsCacheKey) // Use a key for BlockIds
+	cachedMetadata, _ := s.cache.GetAll()
 	var fileMetadataList []*v1.FileMetadata
 
-	if exists {
-		// Convert cachedMetadata from []byte to []FileMetadata
-		if err := json.Unmarshal(cachedMetadata, &fileMetadataList); err != nil {
+	for _, md := range cachedMetadata {
+		var mdData v1.FileMetadata
+		// Convert cachedMetadata from []byte to FileMetadata
+		if err := json.Unmarshal(md, &mdData); err != nil {
 			log.Println("Error unmarshalling cached metadata:", err)
 			return nil, err
 		}
-		log.Println("Returning cached metadata")
-		return connect.NewResponse(&v1.ListObjectsResponse{
-			Metadata: fileMetadataList, // Return the cached metadata
-		}), nil
+
+		fileMetadataList = append(fileMetadataList, &mdData)
 	}
+
 	// Ensure the directory exists
-	if _, err := os.Stat(s.dataDirectory); os.IsNotExist(err) {
-		log.Printf("Data directory does not exist: %s", s.dataDirectory)
-		return connect.NewResponse(&v1.ListObjectsResponse{
-			Metadata: []*v1.FileMetadata{}, // Return empty metadata
-		}), nil
-	}
-
-	// List files using the filesystem package
-	blockIds, err := s.filesystem.ListFiles(s.dataDirectory)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create metadata for each blockId
-	for _, blockId := range blockIds {
-		metadata := &v1.FileMetadata{
-			ObjectKey: blockId,
-			Extension: filepath.Ext(blockId), // Extracting the file extension from blockId
-		}
-		fileMetadataList = append(fileMetadataList, metadata)
-	}
-
-	log.Printf("List of BlockIds retrieved: %v", blockIds)
 	return connect.NewResponse(&v1.ListObjectsResponse{
 		Metadata: fileMetadataList,
 	}), nil
@@ -260,27 +219,12 @@ func (s *Storage) uploadFile(fullPath string, data []byte) error {
 }
 
 // updateBlockIdsCache updates the BlockIds cache to store metadata instead of just object keys
-func (s *Storage) updateBlockIdsCache(metadata FileMetadata) error {
-	s.mu.Lock() // Locking to prevent race conditions
-	defer s.mu.Unlock()
-
-	cachedMetadata, exists := s.cache.Get(BlockIdsCacheKey)
-	var fileMetadataList []FileMetadata
-
-	if exists {
-		if err := json.Unmarshal(cachedMetadata, &fileMetadataList); err != nil {
-			return s.logError("Error unmarshalling cached metadata", err)
-		}
-	}
-
-	fileMetadataList = append(fileMetadataList, metadata)
-
-	metadataBytes, err := json.Marshal(fileMetadataList)
+func (s *Storage) updateBlockIdsCache(metadata v1.FileMetadata) error {
+	metadataBytes, err := json.Marshal(metadata)
 	if err != nil {
 		return s.logError("Error marshalling metadata", err)
 	}
-
-	return s.cache.Set(BlockIdsCacheKey, metadataBytes)
+	return s.cache.Set(metadata.ObjectKey, metadataBytes)
 }
 
 // logError centralizes error logging for better maintainability.
@@ -291,30 +235,5 @@ func (s *Storage) logError(message string, err error) error {
 
 // updateBlockIdsCacheAfterDelete updates the BlockIds cache after a delete operation.
 func (s *Storage) updateBlockIdsCacheAfterDelete(deletedBlockId string) error {
-	s.mu.Lock() // Locking to prevent race conditions
-	defer s.mu.Unlock()
-
-	cachedBlockIds, exists := s.cache.Get(BlockIdsCacheKey)
-	var blockIds []FileMetadata
-
-	if exists {
-		if err := json.Unmarshal(cachedBlockIds, &blockIds); err != nil {
-			return s.logError("Error unmarshalling cached BlockIds", err)
-		}
-	}
-
-	// Remove the BlockId from the cached list
-	for i, blockId := range blockIds {
-		if blockId.ObjectKey == deletedBlockId {
-			blockIds = append(blockIds[:i], blockIds[i+1:]...) // Remove the BlockId
-			break
-		}
-	}
-
-	blockIdsBytes, err := json.Marshal(blockIds)
-	if err != nil {
-		return s.logError("Error marshalling BlockIds", err)
-	}
-
-	return s.cache.Set(BlockIdsCacheKey, blockIdsBytes)
+	return s.cache.Delete(deletedBlockId)
 }

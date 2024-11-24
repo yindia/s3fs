@@ -8,6 +8,7 @@ import (
 type Cache interface {
 	Set(key string, value []byte) error
 	Get(key string) ([]byte, bool)
+	GetAll() ([][]byte, bool)
 	Delete(key string) error
 }
 

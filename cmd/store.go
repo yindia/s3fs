@@ -16,6 +16,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	filename string
+	key      string
+)
+
 // storeCmd represents the store command
 var storeCmd = &cobra.Command{
 	Use:   "store",
@@ -33,16 +38,25 @@ var getCmd = &cobra.Command{
 	Use:   "get [key] [output_file]",
 	Short: "Get an item from the store",
 	Long:  "Retrieves an item from the store using the specified key and writes the result to the specified output file.",
-	Args:  cobra.ExactArgs(2), // Changed to expect 2 arguments
+	Args:  cobra.ExactArgs(0), // Changed to expect 2 arguments
 	RunE: func(cmd *cobra.Command, args []string) error {
-		client := createStorageClient()
-		log.Printf("Attempting to retrieve item with key: '%s'", args[0])
-		response, err := client.Get(context.Background(), connect.NewRequest(&v1.GetObjectRequest{
-			ObjectKey: args[0],
+		// Validation for key
+		if key == "" {
+			return fmt.Errorf("key must be provided")
+		}
+		// Validation for output_file
+		if len(args) < 1 {
+			return fmt.Errorf("output_file must be provided")
+		}
+		outputFile := args[0] // Get the output file from args
+
+		log.Printf("Attempting to retrieve item with key: '%s'", key)
+		response, err := createStorageClient().Get(context.Background(), connect.NewRequest(&v1.GetObjectRequest{
+			ObjectKey: key,
 		}))
 		if err != nil {
 			log.Printf("Error retrieving item: %s", err)
-			return fmt.Errorf("failed to get item with key '%s': %w", args[0], err)
+			return fmt.Errorf("failed to get item with key '%s': %w", key, err)
 		}
 
 		// Create a progress bar
@@ -51,19 +65,20 @@ var getCmd = &cobra.Command{
 			progressbar.OptionShowCount(),
 			progressbar.OptionSetWidth(15),
 		)
-		file, err := os.OpenFile(args[1], os.O_CREATE|os.O_WRONLY, 0644) // Use args[1] for output file
+		file, err := os.OpenFile(outputFile, os.O_CREATE|os.O_WRONLY, 0644) // Use output_file for output
 		if err != nil {
-			return fmt.Errorf("failed to open file '%s': %w", args[1], err)
+			return fmt.Errorf("failed to open file '%s': %w", outputFile, err)
 		}
 		defer file.Close()
 
 		for response.Receive() {
 			message := response.Msg()
 			if _, err := file.Write(message.Data); err != nil {
-				return fmt.Errorf("failed to write to file '%s': %w", args[1], err)
+				return fmt.Errorf("failed to write to file '%s': %w", outputFile, err)
 			}
 			bar.Add(len(message.Data))
 		}
+		fmt.Printf("\nFile '%s' downloaded successfully.\n", outputFile) // New message
 		return nil
 	},
 }
@@ -73,18 +88,26 @@ var deleteCmd = &cobra.Command{
 	Use:   "delete [key]",
 	Short: "Delete an item from the store",
 	Long:  "Removes an item from the store using the specified key.",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.ExactArgs(0),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		client := createStorageClient()
-		log.Printf("Attempting to delete item with key: '%s'", args[0])
-		deleteResponse, err := client.Delete(context.Background(), connect.NewRequest(&v1.DeleteRequestMsg{
-			ObjectKey: args[0],
+		// Validation for key
+		if key == "" {
+			return fmt.Errorf("key must be provided")
+		}
+
+		log.Printf("Attempting to delete item with key: '%s'", key)
+		deleteResponse, err := createStorageClient().Delete(context.Background(), connect.NewRequest(&v1.DeleteRequestMsg{
+			ObjectKey: key,
 		}))
 		if err != nil {
 			log.Printf("Error deleting item: %s", err)
-			return fmt.Errorf("failed to delete item with key '%s': %w", args[0], err)
+			return fmt.Errorf("failed to delete item with key '%s': %w", key, err)
 		}
-		fmt.Println(deleteResponse.Msg.Status)
+		if deleteResponse.Msg.Status {
+			fmt.Println("Item deleted successfully.")
+			return nil
+		}
+		fmt.Println("Failed to delete item.")
 		return nil
 	},
 }
@@ -94,23 +117,31 @@ var uploadCmd = &cobra.Command{
 	Use:   "upload [key] [file]",
 	Short: "Upload an item to the store",
 	Long:  "Uploads an item to the store with the specified key and file. The file's content is sent to the storage service in smaller chunks.",
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.ExactArgs(0),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		client := createStorageClient()
-		stream := client.Upload(context.Background())
-		file, err := os.Open(args[1])
+		// Validation for key
+		if key == "" {
+			return fmt.Errorf("key must be provided")
+		}
+		// Validation for filename
+		if filename == "" {
+			return fmt.Errorf("filename must be provided")
+		}
+
+		stream := createStorageClient().Upload(context.Background())
+		file, err := os.Open(filename)
 		if err != nil {
-			return fmt.Errorf("failed to open file '%s': %w", args[1], err)
+			return fmt.Errorf("failed to open file '%s': %w", filename, err)
 		}
 		defer file.Close()
 
 		// Check if the file is empty
 		fileInfo, err := file.Stat()
 		if err != nil {
-			return fmt.Errorf("failed to get file info for '%s': %w", args[1], err)
+			return fmt.Errorf("failed to get file info for '%s': %w", filename, err)
 		}
 		if fileInfo.Size() == 0 {
-			return fmt.Errorf("file '%s' is empty", args[1])
+			return fmt.Errorf("file '%s' is empty", filename)
 		}
 
 		const chunkSize = 1024 * 1024
@@ -125,7 +156,7 @@ var uploadCmd = &cobra.Command{
 		for {
 			n, err := file.Read(buffer)
 			if err != nil && err != io.EOF {
-				return fmt.Errorf("failed to read file '%s': %w", args[1], err)
+				return fmt.Errorf("failed to read file '%s': %w", filename, err)
 			}
 			if n == 0 {
 				break
@@ -134,14 +165,14 @@ var uploadCmd = &cobra.Command{
 			totalChunks++
 			bar.Add(1)
 			if err := stream.Send(&v1.UploadRequestMsg{
-				ObjectKey: args[0],
+				ObjectKey: key,
 				Data:      buffer[:n],
 			}); err != nil {
 				return fmt.Errorf("\nfailed to send upload request: %w", err)
 			}
 		}
 
-		fmt.Printf("\nUploaded %d chunks successfully for key '%s'\n", totalChunks, args[0])
+		fmt.Printf("\nUploaded %d chunks successfully for key '%s'\n", totalChunks, key)
 		return nil
 	},
 }
@@ -152,8 +183,7 @@ var listCmd = &cobra.Command{
 	Short: "List all items in the store",
 	Long:  "Lists all items currently stored in the storage system. The result is returned in JSON format.",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		client := createStorageClient()
-		response, err := client.List(context.Background(), connect.NewRequest(&v1.ListObjectsRequest{}))
+		response, err := createStorageClient().List(context.Background(), connect.NewRequest(&v1.ListObjectsRequest{}))
 		if err != nil {
 			return fmt.Errorf("failed to list items: %w", err)
 		}
@@ -181,7 +211,13 @@ func init() {
 	storeCmd.PersistentFlags().StringVar(&address, "address", "http://127.0.0.1:8080", "Set the address of the storage service")
 
 	storeCmd.AddCommand(getCmd)
+	getCmd.Flags().StringVarP(&key, "key", "k", "", "file name to upload a kind of id")
 	storeCmd.AddCommand(uploadCmd)
-	storeCmd.AddCommand(listCmd)
+	uploadCmd.Flags().StringVarP(&filename, "file", "f", "./", "file to upload")
+	uploadCmd.Flags().StringVarP(&key, "key", "k", "", "file name to upload a kind of id")
+
 	storeCmd.AddCommand(deleteCmd)
+	deleteCmd.Flags().StringVarP(&key, "key", "k", "", "file name to upload a kind of id")
+
+	storeCmd.AddCommand(listCmd)
 }

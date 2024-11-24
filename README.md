@@ -65,11 +65,48 @@ Use `s3fs store --help` for more information on each command.
 ### Example
 
 - Upload a file 
+
+Help 
 ```shell
-./bin/s3fs store upload go.sum ./go.sum 
+s3fs store get --help
+```
+
+Example
+```shell
+./bin/s3fs store upload -k go.sum -f ./go.sum 
+Uploads an item to the store with the specified key and file. The file's content is sent to the storage service in smaller chunks.
+
+Usage:
+  s3fs store upload [key] [file] [flags]
+
+Flags:
+  -f, --file string   file to upload (default "./")
+  -h, --help          help for upload
+  -k, --key string    file name to upload a kind of id
+
+Global Flags:
+      --address string     Set the address of the storage service (default "http://127.0.0.1:8080")
+      --log-level string   Set the logging level (default "error")
 ```
 
 - List available files 
+Help 
+```shell
+s3fs store get --help
+Lists all items currently stored in the storage system. The result is returned in JSON format.
+
+Usage:
+  s3fs store list [flags]
+
+Flags:
+  -h, --help   help for list
+
+Global Flags:
+      --address string     Set the address of the storage service (default "http://127.0.0.1:8080")
+      --log-level string   Set the logging level (default "error")
+```
+
+Example 
 ```shell
 # Using Curl
 curl --header 'Content-Type: application/json' --data '{}' http://127.0.0.1:8080/cloud.v1.StorageService/List
@@ -79,15 +116,53 @@ curl --header 'Content-Type: application/json' --data '{}' http://127.0.0.1:8080
 ```
 
 - Get a file 
+
+Help 
 ```shell
-./bin/s3fs store get go.sum
+s3fs store get --help
+Retrieves an item from the store using the specified key and writes the result to the specified output file.
+
+Usage:
+  s3fs store get [key] [output_file] [flags]
+
+Flags:
+  -h, --help         help for get
+  -k, --key string   file name to upload a kind of id
+
+Global Flags:
+      --address string     Set the address of the storage service (default "http://127.0.0.1:8080")
+      --log-level string   Set the logging level (default "error")
+```
+
+Example 
+```shell
+./bin/s3fs store get -k go.sum
 ```
 
 - Delete a file 
+
+Help 
+```shell
+s3fs store delete --help
+Removes an item from the store using the specified key.
+
+Usage:
+  s3fs store delete [key] [flags]
+
+Flags:
+  -h, --help         help for delete
+  -k, --key string   file name to upload a kind of id
+
+Global Flags:
+      --address string     Set the address of the storage service (default "http://127.0.0.1:8080")
+      --log-level string   Set the logging level (default "error")
+```
+
+Example using curl and cli
 ```shell
 # Using Curl
 curl --header 'Content-Type: application/json' --data '{ "object_key": "go.sum" }' http://127.0.0.1:8080/cloud.v1.StorageService/Delete
 
 # Or using CLI 
-./bin/s3fs store delete go.sum
+./bin/s3fs store delete -k go.sum
 ```
