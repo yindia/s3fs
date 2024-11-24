@@ -4,7 +4,7 @@ BUILD_DIR := bin
 CLI_SRC := ./
 
 # Docker configuration
-DOCKER_REPO := ghcr.io/yindia
+DOCKER_REPO ?= ghcr.io/yindia
 VERSION := $(shell git describe --tags --always --dirty)
 DOCKER_CLI_NAME := s3fs-cli
 

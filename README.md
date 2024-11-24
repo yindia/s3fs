@@ -2,6 +2,13 @@
 
 s3fs: A simple S3-like service to upload, get, list, and delete files efficiently. Before getting started, read `TOOLING.md` to learn about the tooling used for the project.
 
+## Tooling and Release Information
+
+For detailed information on the development environment setup, refer to `TOOLING.md`. This document outlines the tools used in the project, including installation instructions for each tool.
+
+Additionally, `RELEASE.md` provides a comprehensive guide on the release process for the software, including how to create tags, build Docker images, and release the CLI on GitHub.
+
+
 ## Architecture
 
 ```mermaid
@@ -31,7 +38,6 @@ s3fs/
 
 ## API Documentation
 - [Proto Docs](https://buf.build/evalsocket/s3fs)
-- [Postman Docs]()
 
 ## Get Started
 
