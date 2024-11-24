@@ -1,7 +1,7 @@
 package cache
 
 import (
-	"github.com/go-redis/redis/v8"
+	"s3fs/pkg/config"
 )
 
 // Cache interface defines the methods for caching
@@ -13,10 +13,10 @@ type Cache interface {
 }
 
 // NewRedisCache creates a new instance of RedisCache
-func NewCache(cacheType string, conf *redis.Options) Cache {
+func NewCache(cacheType string, conf *config.Config) Cache {
 
 	if cacheType == "redis" {
-		return NewRedisCache(conf.Addr)
+		return NewRedisCache(conf)
 	}
 	return NewMemoryCache()
 }

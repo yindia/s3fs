@@ -1,8 +1,11 @@
-// TDOD: Will be implimented later
+// TODO: Will implement and test it later
+// TODO: Add error handling for Redis operations
 package cache
 
 import (
 	"context"
+	"fmt"
+	"s3fs/pkg/config"
 
 	"github.com/go-redis/redis/v8"
 )
@@ -14,9 +17,11 @@ type RedisCache struct {
 }
 
 // NewRedisCache creates a new instance of RedisCache
-func NewRedisCache(addr string) Cache {
+func NewRedisCache(config *config.Config) Cache {
 	rdb := redis.NewClient(&redis.Options{
-		Addr: addr,
+		Addr:     fmt.Sprintf("%s:%d", config.Cache.Host, config.Cache.Port),
+		Username: config.Cache.Username,
+		Password: config.Cache.Password,
 	})
 	return &RedisCache{
 		client: rdb,

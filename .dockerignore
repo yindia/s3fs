@@ -1,8 +1,26 @@
+# Ignore Go build artifacts
+*.exe
+*.exe~
+*.out
+*.test
+*.so
+*.a
+
+# Ignore vendor directory
+/vendor/
+
+# Ignore Go module files
+go.sum
+go.mod
+
+# Ignore IDE and editor files
+*.idea/
+*.vscode/
+*.DS_Store
+
+# Ignore temporary files
+*.tmp
+*.log
+
+# Ignore specific test files
 .pixi/
-test1/
-test3/
-test30ea0b9de-3cf9-411c-89f8-ab193e3d55b0
-test4/
-test5/
-test6/
-docker-compose.yaml

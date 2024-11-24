@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"s3fs/pkg/config"
 	"s3fs/pkg/gen/cloud/v1/cloudv1connect"
 	dsroute "s3fs/server/route"
 
@@ -37,7 +38,6 @@ var (
 // newCORS initializes CORS settings for the server
 // It allows all origins and methods, and exposes necessary headers for gRPC-Web
 func newCORS() *cors.Cors {
-	slog.Debug("Initializing CORS settings")
 	return cors.New(cors.Options{
 		AllowedMethods: []string{
 			http.MethodHead,
@@ -76,13 +76,18 @@ var serveCmd = &cobra.Command{
 	Example: `  `,
 	Args:    cobra.ExactArgs(0),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		mux := createMux(createServiceHandler())
+
+		cm, err := config.LoadEnvConfig()
+		if err != nil {
+			return err
+		}
+		mux := createMux(createServiceHandler(cm))
 		return runServer(mux)
 	},
 }
 
 // createServiceHandler creates a service handler for the storage service
-func createServiceHandler() func() (string, http.Handler) {
+func createServiceHandler(cm *config.Config) func() (string, http.Handler) {
 	return func() (string, http.Handler) {
 		otelInterceptor, err := otelconnect.NewInterceptor()
 		if err != nil {
@@ -91,7 +96,7 @@ func createServiceHandler() func() (string, http.Handler) {
 		}
 
 		return cloudv1connect.NewStorageServiceHandler(
-			dsroute.NewStorage(dataDir),
+			dsroute.NewStorage(dataDir, cm),
 			connect.WithInterceptors(otelInterceptor),
 			connect.WithCompressMinBytes(CompressMinBytes),
 			connect.WithSendMaxBytes(math.MaxInt32),
@@ -139,7 +144,7 @@ func createMux(serviceHandler func() (string, http.Handler)) *http.ServeMux {
 func runServer(mux *http.ServeMux) error {
 	srv := initializeServer(mux)
 
-	slog.Debug("Server initialized", "address", srv.Addr)
+	slog.Info("Server initialized", "address", srv.Addr)
 
 	// Start the server in a goroutine
 	serverErrChan := make(chan error, 1)
@@ -167,12 +172,18 @@ func runServer(mux *http.ServeMux) error {
 		slog.Error("HTTP server shutdown failed", "error", err)
 		return fmt.Errorf("HTTP server shutdown failed: %w", err)
 	}
+	slog.Info("Server shutdown completed")
 	return nil
 }
 
 func init() {
-	rootCmd.AddCommand(serveCmd)
 
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+	slog.SetDefault(logger)
+
+	rootCmd.AddCommand(serveCmd)
 	serveCmd.Flags().Uint16VarP(&serverPort, "port", "p", 8080, "Port to run the datanode server on")
 	serveCmd.Flags().StringVarP(&dataDir, "dir", "d", "./", "Directory for data storage")
 }

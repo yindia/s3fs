@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	v1 "s3fs/pkg/gen/cloud/v1"
@@ -14,6 +13,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/schollz/progressbar/v3"
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/slog"
 )
 
 var (
@@ -35,7 +35,7 @@ func createStorageClient() cloudv1connect.StorageServiceClient {
 
 // getCmd retrieves an item from the store
 var getCmd = &cobra.Command{
-	Use:   "get [key] [output_file]",
+	Use:   "get -k [key]",
 	Short: "Get an item from the store",
 	Long:  "Retrieves an item from the store using the specified key and writes the result to the specified output file.",
 	Args:  cobra.ExactArgs(0), // Changed to expect 2 arguments
@@ -44,18 +44,15 @@ var getCmd = &cobra.Command{
 		if key == "" {
 			return fmt.Errorf("key must be provided")
 		}
-		// Validation for output_file
-		if len(args) < 1 {
-			return fmt.Errorf("output_file must be provided")
-		}
-		outputFile := args[0] // Get the output file from args
 
-		log.Printf("Attempting to retrieve item with key: '%s'", key)
+		outputFile := key
+
+		slog.Info("Attempting to retrieve item", "key", key)
 		response, err := createStorageClient().Get(context.Background(), connect.NewRequest(&v1.GetObjectRequest{
 			ObjectKey: key,
 		}))
 		if err != nil {
-			log.Printf("Error retrieving item: %s", err)
+			slog.Error("Error retrieving item", "error", err)
 			return fmt.Errorf("failed to get item with key '%s': %w", key, err)
 		}
 
@@ -78,14 +75,14 @@ var getCmd = &cobra.Command{
 			}
 			bar.Add(len(message.Data))
 		}
-		fmt.Printf("\nFile '%s' downloaded successfully.\n", outputFile) // New message
+		slog.Info("File downloaded successfully", "output_file", outputFile)
 		return nil
 	},
 }
 
 // deleteCmd removes an item from the store
 var deleteCmd = &cobra.Command{
-	Use:   "delete [key]",
+	Use:   "delete -k [key]",
 	Short: "Delete an item from the store",
 	Long:  "Removes an item from the store using the specified key.",
 	Args:  cobra.ExactArgs(0),
@@ -95,26 +92,26 @@ var deleteCmd = &cobra.Command{
 			return fmt.Errorf("key must be provided")
 		}
 
-		log.Printf("Attempting to delete item with key: '%s'", key)
+		slog.Info("Attempting to delete item", "key", key)
 		deleteResponse, err := createStorageClient().Delete(context.Background(), connect.NewRequest(&v1.DeleteRequestMsg{
 			ObjectKey: key,
 		}))
 		if err != nil {
-			log.Printf("Error deleting item: %s", err)
+			slog.Error("Error deleting item", "error", err)
 			return fmt.Errorf("failed to delete item with key '%s': %w", key, err)
 		}
 		if deleteResponse.Msg.Status {
-			fmt.Println("Item deleted successfully.")
+			slog.Info("Item deleted successfully.")
 			return nil
 		}
-		fmt.Println("Failed to delete item.")
+		slog.Warn("Failed to delete item.")
 		return nil
 	},
 }
 
 // uploadCmd uploads an item to the store
 var uploadCmd = &cobra.Command{
-	Use:   "upload [key] [file]",
+	Use:   "upload -k [key] -f [file]",
 	Short: "Upload an item to the store",
 	Long:  "Uploads an item to the store with the specified key and file. The file's content is sent to the storage service in smaller chunks.",
 	Args:  cobra.ExactArgs(0),
@@ -131,6 +128,7 @@ var uploadCmd = &cobra.Command{
 		stream := createStorageClient().Upload(context.Background())
 		file, err := os.Open(filename)
 		if err != nil {
+			slog.Error("Failed to open file", "filename", filename, "error", err)
 			return fmt.Errorf("failed to open file '%s': %w", filename, err)
 		}
 		defer file.Close()
@@ -138,9 +136,11 @@ var uploadCmd = &cobra.Command{
 		// Check if the file is empty
 		fileInfo, err := file.Stat()
 		if err != nil {
+			slog.Error("Failed to get file info", "filename", filename, "error", err)
 			return fmt.Errorf("failed to get file info for '%s': %w", filename, err)
 		}
 		if fileInfo.Size() == 0 {
+			slog.Warn("File is empty", "filename", filename)
 			return fmt.Errorf("file '%s' is empty", filename)
 		}
 
@@ -156,6 +156,7 @@ var uploadCmd = &cobra.Command{
 		for {
 			n, err := file.Read(buffer)
 			if err != nil && err != io.EOF {
+				slog.Error("Failed to read file", "filename", filename, "error", err)
 				return fmt.Errorf("failed to read file '%s': %w", filename, err)
 			}
 			if n == 0 {
@@ -168,11 +169,12 @@ var uploadCmd = &cobra.Command{
 				ObjectKey: key,
 				Data:      buffer[:n],
 			}); err != nil {
+				slog.Error("Failed to send upload request", "error", err)
 				return fmt.Errorf("\nfailed to send upload request: %w", err)
 			}
 		}
 
-		fmt.Printf("\nUploaded %d chunks successfully for key '%s'\n", totalChunks, key)
+		slog.Info("Uploaded chunks successfully", "totalChunks", totalChunks, "key", key)
 		return nil
 	},
 }
@@ -207,6 +209,11 @@ var listCmd = &cobra.Command{
 }
 
 func init() {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+	slog.SetDefault(logger)
+
 	rootCmd.AddCommand(storeCmd)
 	storeCmd.PersistentFlags().StringVar(&address, "address", "http://127.0.0.1:8080", "Set the address of the storage service")
 

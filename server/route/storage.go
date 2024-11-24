@@ -7,12 +7,14 @@ import (
 	"os"
 	"path/filepath"
 	"s3fs/pkg/cache"
+	"s3fs/pkg/config"
 	"s3fs/pkg/filesystem"
 	v1 "s3fs/pkg/gen/cloud/v1"
 	"s3fs/pkg/gen/cloud/v1/cloudv1connect"
 
 	"connectrpc.com/connect"
 	"github.com/bufbuild/protovalidate-go"
+	"golang.org/x/exp/slog"
 )
 
 // Storage represents the S3 file system service.
@@ -24,7 +26,7 @@ type Storage struct {
 }
 
 // NewStorage initializes a new S3fs server.
-func NewStorage(dir string) cloudv1connect.StorageServiceHandler {
+func NewStorage(dir string, cm *config.Config) cloudv1connect.StorageServiceHandler {
 	// Ensure the directory exists, create it if it doesn't
 	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
 		log.Fatalf("Failed to create directory: %v", err)
@@ -38,14 +40,14 @@ func NewStorage(dir string) cloudv1connect.StorageServiceHandler {
 	return &Storage{
 		validator:     validator,
 		dataDirectory: filepath.Base(dir),
-		cache:         cache.NewCache("memory", nil),
+		cache:         cache.NewCache(cm.Cache.CacheType, cm),
 		filesystem:    &filesystem.FilesystemImpl{},
 	}
 }
 
 // Upload handles the file upload logic.
 func (s *Storage) Upload(ctx context.Context, stream *connect.ClientStream[v1.UploadRequestMsg]) (*connect.Response[v1.UploadResponseMsg], error) {
-	log.Println("Debug: Starting Upload method")
+	slog.Info("Starting Upload method")
 
 	var objectKey string
 	var fileSize uint32
@@ -55,6 +57,7 @@ func (s *Storage) Upload(ctx context.Context, stream *connect.ClientStream[v1.Up
 	for stream.Receive() {
 		req := stream.Msg()
 		if err := s.validator.Validate(req); err != nil {
+			slog.Error("Validation error", "error", err)
 			return nil, s.logError("Validation error", err)
 		}
 		objectKey = req.ObjectKey
@@ -62,7 +65,7 @@ func (s *Storage) Upload(ctx context.Context, stream *connect.ClientStream[v1.Up
 
 		// Handle blank file (no data)
 		if len(data) == 0 {
-			log.Printf("Received blank file for object key: %s", objectKey)
+			slog.Warn("Received blank file", "objectKey", objectKey)
 			fullPath := filepath.Join(s.dataDirectory, objectKey)
 			if err := os.WriteFile(fullPath, []byte{}, 0644); err != nil {
 				return nil, s.logError("Failed to create blank file", err)
@@ -80,7 +83,6 @@ func (s *Storage) Upload(ctx context.Context, stream *connect.ClientStream[v1.Up
 			if err != nil {
 				return nil, s.logError("Failed to open file for writing", err)
 			}
-
 		}
 
 		// Write the chunk to the file
@@ -97,13 +99,14 @@ func (s *Storage) Upload(ctx context.Context, stream *connect.ClientStream[v1.Up
 	}
 
 	if err := s.updateBlockIdsCache(metadata); err != nil {
-		log.Println("Error caching file metadata:", err)
+		slog.Error("Error caching file metadata", "error", err)
 	}
 
 	if err := stream.Err(); err != nil {
 		return nil, connect.NewError(connect.CodeUnknown, err)
 	}
 
+	slog.Info("Upload completed successfully", "objectKey", objectKey, "fileSize", fileSize)
 	return connect.NewResponse(&v1.UploadResponseMsg{
 		Status: true,
 	}), nil
@@ -111,11 +114,10 @@ func (s *Storage) Upload(ctx context.Context, stream *connect.ClientStream[v1.Up
 
 // Get retrieves the file data for the specified object key.
 func (s *Storage) Get(ctx context.Context, req *connect.Request[v1.GetObjectRequest], stream *connect.ServerStream[v1.GetObjectResponse]) error {
-	log.Println("Debug: Starting Get method")
-	log.Printf("Get called with ObjectKey: %s", req.Msg.ObjectKey)
+	slog.Info("Starting Get method", "objectKey", req.Msg.ObjectKey)
 
 	if err := s.validator.Validate(req.Msg); err != nil {
-		log.Println("Validation error:", err)
+		slog.Error("Validation error", "error", err)
 		return err
 	}
 
@@ -137,13 +139,13 @@ func (s *Storage) Get(ctx context.Context, req *connect.Request[v1.GetObjectRequ
 			return s.logError("Failed to send data chunk", err)
 		}
 	}
-	log.Printf("Data retrieved for ObjectKey: %s", req.Msg.ObjectKey)
+	slog.Info("Data retrieved successfully", "objectKey", req.Msg.ObjectKey)
 	return nil
 }
 
 // Delete removes the specified object from storage.
 func (s *Storage) Delete(ctx context.Context, req *connect.Request[v1.DeleteRequestMsg]) (*connect.Response[v1.DeleteStatusMsg], error) {
-	log.Printf("Debug: Starting Delete method with ObjectKey: %s", req.Msg.ObjectKey)
+	slog.Info("Starting Delete method", "objectKey", req.Msg.ObjectKey)
 
 	if err := s.validator.Validate(req.Msg); err != nil {
 		return nil, s.logError("Validation error", err)
@@ -152,7 +154,7 @@ func (s *Storage) Delete(ctx context.Context, req *connect.Request[v1.DeleteRequ
 	fullPath := filepath.Join(s.dataDirectory, req.Msg.ObjectKey)
 
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-		log.Printf("File does not exist, cannot delete: %s", fullPath)
+		slog.Info("File does not exist, cannot delete", "objectKey", req.Msg.ObjectKey)
 		return connect.NewResponse(&v1.DeleteStatusMsg{
 			Status: true,
 		}), nil
@@ -163,10 +165,10 @@ func (s *Storage) Delete(ctx context.Context, req *connect.Request[v1.DeleteRequ
 	}
 
 	if err := s.updateBlockIdsCacheAfterDelete(req.Msg.ObjectKey); err != nil {
-		log.Println("Error updating BlockIds cache after delete:", err)
+		slog.Error("Error updating BlockIds cache after delete", "error", err)
 	}
 
-	log.Printf("File deleted successfully: %s", fullPath)
+	slog.Info("File deleted successfully", "objectKey", req.Msg.ObjectKey)
 
 	return connect.NewResponse(&v1.DeleteStatusMsg{
 		Status: true,
@@ -175,7 +177,7 @@ func (s *Storage) Delete(ctx context.Context, req *connect.Request[v1.DeleteRequ
 
 // List retrieves a list of object keys and their metadata stored in the directory.
 func (s *Storage) List(ctx context.Context, req *connect.Request[v1.ListObjectsRequest]) (*connect.Response[v1.ListObjectsResponse], error) {
-	log.Println("Debug: Starting List method")
+	slog.Info("Starting List method")
 
 	cachedMetadata, _ := s.cache.GetAll()
 	var fileMetadataList []*v1.FileMetadata
@@ -184,7 +186,7 @@ func (s *Storage) List(ctx context.Context, req *connect.Request[v1.ListObjectsR
 		var mdData v1.FileMetadata
 		// Convert cachedMetadata from []byte to FileMetadata
 		if err := json.Unmarshal(md, &mdData); err != nil {
-			log.Println("Error unmarshalling cached metadata:", err)
+			slog.Error("Error unmarshalling cached metadata", "error", err)
 			return nil, err
 		}
 
@@ -199,10 +201,10 @@ func (s *Storage) List(ctx context.Context, req *connect.Request[v1.ListObjectsR
 
 // Heartbeat checks the health of the service.
 func (s *Storage) Heartbeat(ctx context.Context, req *connect.Request[v1.HeartbeatRequestMsg]) (*connect.Response[v1.HeartbeatResponseMsg], error) {
-	log.Println("Debug: Starting Heartbeat method")
-	log.Println("Heartbeat called")
+	slog.Info("Starting Heartbeat method")
+	slog.Info("Heartbeat called")
 	if err := s.validator.Validate(req.Msg); err != nil {
-		log.Println("Validation error:", err)
+		slog.Error("Validation error", "error", err)
 		return nil, err
 	}
 	return connect.NewResponse(&v1.HeartbeatResponseMsg{
@@ -229,7 +231,7 @@ func (s *Storage) updateBlockIdsCache(metadata v1.FileMetadata) error {
 
 // logError centralizes error logging for better maintainability.
 func (s *Storage) logError(message string, err error) error {
-	log.Println(message, err)
+	slog.Error(message, "error", err)
 	return err
 }
 

@@ -2,11 +2,14 @@ package cmd
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
 
+var logLevel slog.Level
 var cfgFile string
 var (
 	LogLevel string
@@ -43,4 +46,29 @@ func init() {
 	// Add global flag for address
 	rootCmd.PersistentFlags().StringVar(&address, "address", "http://127.0.0.1:8080", "Set the server address")
 
+	// Modify the PersistentPreRun function
+	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		InitLogger(LogLevel)
+	}
+}
+
+// InitLogger initializes the global logger with the specified log level
+func InitLogger(level string) {
+
+	switch strings.ToLower(level) {
+	case "debug":
+		logLevel = slog.LevelDebug
+	case "info":
+		logLevel = slog.LevelInfo
+	case "warn":
+		logLevel = slog.LevelWarn
+	case "error":
+		logLevel = slog.LevelError
+	default:
+		fmt.Printf("Invalid log level: %s. Using 'info' as default.\n", level)
+		logLevel = slog.LevelInfo
+	}
+
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
+	slog.SetDefault(logger)
 }
