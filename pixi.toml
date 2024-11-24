@@ -5,7 +5,6 @@ description = "Add a short description here"
 channels = ["conda-forge"]
 platforms = ["osx-64", "osx-arm64"]
 
-[tasks]
 
 [dependencies]
 # Dev dependencies

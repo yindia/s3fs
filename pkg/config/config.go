@@ -17,7 +17,7 @@ type CacheConfig struct {
 	Username  string `envconfig:"CACHE_USERNAME" yaml:"username"`
 	Password  string `envconfig:"CACHE_PASSWORD" yaml:"password"`
 	Host      string `envconfig:"CACHE_HOST" yaml:"host"`
-	Port      string `envconfig:"CACHE_PORT" yaml:"port"`
+	Port      uint64 `envconfig:"CACHE_PORT" yaml:"port"`
 	CacheType string `envconfig:"CACHE_TYPE" default:"memory" yaml:"cache_type"`
 }
 

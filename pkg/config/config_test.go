@@ -24,7 +24,7 @@ func TestLoadEnvConfig(t *testing.T) {
 	assert.Equal(t, "testuser", config.Cache.Username)
 	assert.Equal(t, "testpass", config.Cache.Password)
 	assert.Equal(t, "localhost", config.Cache.Host)
-	assert.Equal(t, "6379", config.Cache.Port)
+	assert.Equal(t, uint64(6379), config.Cache.Port)
 	assert.Equal(t, "redis", config.Cache.CacheType)
 
 	// Clean up

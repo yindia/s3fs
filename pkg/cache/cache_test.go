@@ -1,15 +1,17 @@
 package cache
 
 import (
+	"s3fs/pkg/config"
 	"testing"
-
-	"github.com/go-redis/redis/v8"
 )
 
 // TestNewCache tests the NewCache function
 func TestNewCache(t *testing.T) {
-	conf := &redis.Options{
-		Addr: "localhost:6379", // Example Redis address
+	conf := &config.Config{
+		Cache: config.CacheConfig{
+			Host: "localhost",
+			Port: 6379,
+		},
 	}
 
 	// Test for Redis cache
