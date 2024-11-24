@@ -47,6 +47,9 @@ s3fs/
 Once the CLI is in place, start the server by running:
 ```shell
 ./bin/s3fs serve -d datastore
+
+# Or use docker-compose.yaml
+docker-compose up 
 ```
 
 Note: For upload and download, we are using streaming. Calling these APIs from curl might not be possible, but connecting via RPC provides enough tooling to interact with the server from a browser. Users can also communicate with the server using GRPC. Currently, I am not generating the GRPC stub for Go, but it is possible with a small change.
@@ -55,10 +58,10 @@ Note: For upload and download, we are using streaming. Calling these APIs from c
 
 Once the server is up and running, you can use the CLI to interact with the server. The following commands are available for managing the store:
 
-- `s3fs store get [key]`: Retrieve an item from the store.
-- `s3fs store upload [key] [file]`: Upload an item to the store.
+- `s3fs store get -k [KEY]`: Retrieve an item from the store.
+- `s3fs store upload -k [key] -f [file]`: Upload an item to the store.
 - `s3fs store list`: List all items in the store.
-- `s3fs store delete [key]`: Delete an item from the store.
+- `s3fs store delete -k [key]`: Delete an item from the store.
 
 Use `s3fs store --help` for more information on each command.
 
@@ -93,7 +96,7 @@ This allows you to access the service at `http://localhost:8080`.
 ### Using the CLI with the Forwarded Service
 To use the `s3fs` CLI with the forwarded service, specify the custom address using the `--address` flag. For example, to list items in the store, run:
 ```shell
-./bin/s3fs store list --address http://localhost:8080
+./bin/s3fs store list --address http://localhost:8080 --log-level debug
 ```
 This command will interact with the service at the forwarded address.
 

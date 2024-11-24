@@ -98,4 +98,5 @@ bootstrap:
 	curl -fsSL https://pixi.sh/install.sh | bash
 	brew install bufbuild/buf/buf
 	brew install mockery
+	brew install goreleaser/tap/goreleaser
 	pixi shell

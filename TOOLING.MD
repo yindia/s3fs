@@ -36,3 +36,9 @@ Mockery is used to generate Golang mock packages for unit tests. You can install
 ```shell
 brew install mockery
 ```
+
+## 6. Goreleaser
+Goreleaser is used for releasing Go binaries. It releases the binary for all kinds of architectures and environments on any git provider. We are using it for building multi arch binary and publishing them on github along with home brew formula
+```shell
+brew install goreleaser/tap/goreleaser
+```
