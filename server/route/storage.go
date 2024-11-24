@@ -124,7 +124,7 @@ func (s *Storage) Get(ctx context.Context, req *connect.Request[v1.GetObjectRequ
 	fullPath := filepath.Join(s.dataDirectory, req.Msg.ObjectKey)
 	data, err := s.filesystem.ReadFile(fullPath)
 	if err != nil {
-		return s.logError("Failed to read file", err)
+		return s.logError("Failed to read file: key does not exist", err)
 	}
 
 	chunkSize := 1024

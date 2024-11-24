@@ -75,6 +75,9 @@ var getCmd = &cobra.Command{
 			}
 			bar.Add(len(message.Data))
 		}
+		if response.Err() != nil {
+			slog.Error("Error during file download", "error", response.Err())
+		}
 		slog.Info("File downloaded successfully", "output_file", outputFile)
 		return nil
 	},
