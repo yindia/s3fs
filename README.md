@@ -62,107 +62,57 @@ Once the server is up and running, you can use the CLI to interact with the serv
 
 Use `s3fs store --help` for more information on each command.
 
-### Example
+### Example Usage
 
-- Upload a file 
+#### Upload a File
 
-Help 
+To upload a file to the store, use the following command:
 ```shell
-s3fs store get --help
+./bin/s3fs store upload -k go.sum -f ./go.sum
 ```
+This command uploads the file `./go.sum` to the store with the key `go.sum`. The file's content is sent to the storage service in smaller chunks.
 
-Example
+For more information on the `upload` command, run:
 ```shell
-./bin/s3fs store upload -k go.sum -f ./go.sum 
-Uploads an item to the store with the specified key and file. The file's content is sent to the storage service in smaller chunks.
-
-Usage:
-  s3fs store upload [key] [file] [flags]
-
-Flags:
-  -f, --file string   file to upload (default "./")
-  -h, --help          help for upload
-  -k, --key string    file name to upload a kind of id
-
-Global Flags:
-      --address string     Set the address of the storage service (default "http://127.0.0.1:8080")
-      --log-level string   Set the logging level (default "error")
+s3fs store upload --help
 ```
+#### List Available Files
 
-- List available files 
-Help 
+To list all items currently stored in the storage system, use the following command:
 ```shell
-s3fs store get --help
-Lists all items currently stored in the storage system. The result is returned in JSON format.
-
-Usage:
-  s3fs store list [flags]
-
-Flags:
-  -h, --help   help for list
-
-Global Flags:
-      --address string     Set the address of the storage service (default "http://127.0.0.1:8080")
-      --log-level string   Set the logging level (default "error")
-```
-
-Example 
-```shell
-# Using Curl
-curl --header 'Content-Type: application/json' --data '{}' http://127.0.0.1:8080/cloud.v1.StorageService/List
-
-# Or using CLI 
 ./bin/s3fs store list
 ```
-
-- Get a file 
-
-Help 
+This command returns the list of items in JSON format. You can also use `curl` to achieve the same result:
 ```shell
-s3fs store get --help
-Retrieves an item from the store using the specified key and writes the result to the specified output file.
-
-Usage:
-  s3fs store get [key] [output_file] [flags]
-
-Flags:
-  -h, --help         help for get
-  -k, --key string   file name to upload a kind of id
-
-Global Flags:
-      --address string     Set the address of the storage service (default "http://127.0.0.1:8080")
-      --log-level string   Set the logging level (default "error")
+curl --header 'Content-Type: application/json' --data '{}' http://127.0.0.1:8080/cloud.v1.StorageService/List
 ```
+For more information on the `list` command, run:
+```shell
+s3fs store list --help
+```
+#### Get a File
 
-Example 
+To retrieve an item from the store, use the following command:
 ```shell
 ./bin/s3fs store get -k go.sum
 ```
+This command retrieves the item with the key `go.sum` from the store and writes the result to the specified output file.
 
-- Delete a file 
+For more information on the `get` command, run:
+```shell
+s3fs store get --help
+```
+#### Delete a File
 
-Help 
+To remove an item from the store, use the following command:
+```shell
+./bin/s3fs store delete -k go.sum
+```
+This command removes the item with the key `go.sum` from the store. You can also use `curl` to achieve the same result:
+```shell
+curl --header 'Content-Type: application/json' --data '{ "object_key": "go.sum" }' http://127.0.0.1:8080/cloud.v1.StorageService/Delete
+```
+For more information on the `delete` command, run:
 ```shell
 s3fs store delete --help
-Removes an item from the store using the specified key.
-
-Usage:
-  s3fs store delete [key] [flags]
-
-Flags:
-  -h, --help         help for delete
-  -k, --key string   file name to upload a kind of id
-
-Global Flags:
-      --address string     Set the address of the storage service (default "http://127.0.0.1:8080")
-      --log-level string   Set the logging level (default "error")
-```
-
-Example using curl and cli
-```shell
-# Using Curl
-curl --header 'Content-Type: application/json' --data '{ "object_key": "go.sum" }' http://127.0.0.1:8080/cloud.v1.StorageService/Delete
-
-# Or using CLI 
-./bin/s3fs store delete -k go.sum
 ```
