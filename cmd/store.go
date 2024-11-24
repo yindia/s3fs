@@ -64,7 +64,6 @@ var getCmd = &cobra.Command{
 			}
 			bar.Add(len(message.Data))
 		}
-
 		return nil
 	},
 }
@@ -138,11 +137,11 @@ var uploadCmd = &cobra.Command{
 				ObjectKey: args[0],
 				Data:      buffer[:n],
 			}); err != nil {
-				return fmt.Errorf("failed to send upload request: %w", err)
+				return fmt.Errorf("\nfailed to send upload request: %w", err)
 			}
 		}
 
-		fmt.Printf("Uploaded %d chunks successfully for key '%s'\n", totalChunks, args[0])
+		fmt.Printf("\nUploaded %d chunks successfully for key '%s'\n", totalChunks, args[0])
 		return nil
 	},
 }
